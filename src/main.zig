@@ -1,7 +1,6 @@
 const std = @import("std");
 const lex = @import("lexer.zig");
 
-//test
 
 pub fn main() !void {
 
