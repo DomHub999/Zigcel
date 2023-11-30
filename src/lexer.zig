@@ -1,7 +1,11 @@
 const std = @import("std");
+const tok = @import("token.zig");
+const Token = tok.Token;
+const MAX_TOKEN_SIZE = tok.MAX_TOKEN_SIZE;
+const TokenType = tok.TokenType;
+
 
 const Errors = error{
-    token_exceeds_max_token_size,
     character_nod_defined,
     token_type_cannot_be_determined,
     source_size_equals_null,
@@ -25,7 +29,7 @@ pub const Lexer = struct {
         }
 
         while (current_position) |pos| {
-            const next_token_result = try LexerRulesEnforcer.getNextToken(source, pos, source_size);
+            const next_token_result = try TokenExtraction.getNextToken(source, pos, source_size);
             try this.token_list.append(next_token_result.token);
             current_position = next_token_result.new_current;
         }
@@ -82,67 +86,13 @@ pub const Lexer = struct {
     }
 };
 
-pub const TokenType = enum {
-    plus,
-    minus,
-    asterisk,
-    forward_slash,
-    percent_sign,
-    caret,
-    bracket_open,
-    bracket_close,
-    constant,
 
-    equal_sign,
-    greater_than_sign,
-    less_than_sign,
-    greater_equal_to_sign,
-    less_equal_to_sign,
-    not_equal_to_sign,
 
-    ampersand,
-    colon,
-    comma,
-    space,
-    pound,
-    at,
-
-    formula,
-    reference,
-
-    string,
-};
-
-const MAX_TOKEN_SIZE: usize = 20;
-pub const Token = struct {
-    current_chara_num: usize = 0,
-    token: [MAX_TOKEN_SIZE]u8 = [_]u8{0} ** MAX_TOKEN_SIZE,
-    token_type: TokenType = undefined,
-    valid_token: bool = true,
-
-    fn insertCharacterAndTokenType(this: *@This(), character: u8, ttype: TokenType) !void {
-        this.insertTokenType(ttype);
-        try this.insertCharacter(character);
-    }
-
-    fn insertCharacter(this: *@This(), character: u8) !void {
-        if (this.current_chara_num + 1 == MAX_TOKEN_SIZE) {
-            return Errors.token_exceeds_max_token_size;
-        }
-        this.token[this.current_chara_num] = character;
-        this.current_chara_num += 1;
-    }
-
-    fn insertTokenType(this: *@This(), ttype: TokenType) void {
-        this.token_type = ttype;
-    }
-};
-
-pub const LexerRulesEnforcer = struct {
+pub const TokenExtraction = struct {
     fn getNextToken(source: [*:0]const u8, current: usize, source_size: usize) !struct { token: Token, new_current: ?usize } {
         var this_current = current;
         var current_character = source[this_current];
-        const rule = LexerRulesEnforcer.getRule(current_character);
+        const rule = TokenExtraction.getRule(current_character);
         var token = Token{};
 
         switch (rule) {
@@ -193,8 +143,8 @@ pub const LexerRulesEnforcer = struct {
         return .{ .token = token, .new_current = new_current };
     }
 
-    const TokenTypeDeterminator = *const fn (source: [*:0]const u8, start: usize, current: usize, source_size: usize) Errors!TokenType;
-    const EndOfSeqDeterminator = *const fn (source: [*:0]const u8, start: usize, current: usize, source_size: usize) bool;
+    const TokenTypeDet = *const fn (source: [*:0]const u8, start: usize, current: usize, source_size: usize) Errors!TokenType;
+    const EndOfSeqDet = *const fn (source: [*:0]const u8, start: usize, current: usize, source_size: usize) bool;
     const CharacterTransferDet = *const fn (source: [*:0]const u8, start: usize, current: usize, source_size: usize) bool;
 
     const RuleType = enum {
@@ -208,8 +158,8 @@ pub const LexerRulesEnforcer = struct {
         },
         multiple_characters: struct {
             subs_characters: []const CharaRange,
-            token_type_det: TokenTypeDeterminator,
-            eoseq_det: ?EndOfSeqDeterminator = null,
+            token_type_det: TokenTypeDet,
+            eoseq_det: ?EndOfSeqDet = null,
             chara_trans_det: ?CharacterTransferDet = null,
         },
         not_defined: bool,

@@ -1,13 +1,16 @@
 const std = @import("std");
 const lex = @import("lexer.zig");
+const tok = @import("token.zig");
+const TokenType = tok.TokenType;
+const Token = tok.Token;
 
 const Error = error{
-    token_type_not_impl_for_stage08,
+    expected_operand_is_missing,
 };
 
 const Parser = struct {
     lexer: *lex.Lexer,
-    current_token: ?*lex.Token = null,
+    current_token: ?*Token = null,
     first_token: bool = true,
 
     pub fn parse(lexer: *lex.Lexer) void {
@@ -24,60 +27,172 @@ const Parser = struct {
         var result_lhs = this.stage01();
 
         if (this.current_token) |token_operator| {
-            while (token_operator.*.token == lex.TokenType.equal_sign) {
+            var result_rhs: ?Token = null;
+
+            while (token_operator.*.token == TokenType.equal_sign) {
                 this.consumeToken();
-                var result_rhs = this.stage01();
+                result_rhs = this.stage01();
                 this.triggerStackSequenceBinary(StackSequence.equal(), &result_lhs, &result_rhs);
+                return null;
             }
-            while (token_operator.*.token == lex.TokenType.greater_than_sign) {}
-            while (token_operator.*.token == lex.TokenType.less_than_sign) {}
-            while (token_operator.*.token == lex.TokenType.greater_equal_to_sign) {}
-            while (token_operator.*.token == lex.TokenType.less_equal_to_sign) {}
-            while (token_operator.*.token == lex.TokenType.not_equal_to_sign) {}
+
+            while (token_operator.*.token == TokenType.greater_than_sign) {
+                this.consumeToken();
+                result_rhs = this.stage01();
+                this.triggerStackSequenceBinary(StackSequence.greaterThan(), &result_lhs, &result_rhs);
+                return null;
+            }
+            while (token_operator.*.token == TokenType.less_than_sign) {
+                this.consumeToken();
+                result_rhs = this.stage01();
+                this.triggerStackSequenceBinary(StackSequence.lessThan(), &result_lhs, &result_rhs);
+                return null;
+            }
+            while (token_operator.*.token == TokenType.greater_equal_to_sign) {
+                this.consumeToken();
+                result_rhs = this.stage01();
+                this.triggerStackSequenceBinary(StackSequence.greaterEqualThan(), &result_lhs, &result_rhs);
+                return null;
+            }
+            while (token_operator.*.token == TokenType.less_equal_to_sign) {
+                this.consumeToken();
+                result_rhs = this.stage01();
+                this.triggerStackSequenceBinary(StackSequence.lessEqualThan(), &result_lhs, &result_rhs);
+                return null;
+            }
+            while (token_operator.*.token == TokenType.not_equal_to_sign) {
+                this.consumeToken();
+                result_rhs = this.stage01();
+                this.triggerStackSequenceBinary(StackSequence.notEqualTo(), &result_lhs, &result_rhs);
+                return null;
+            }
         }
+
+        return result_lhs;
     }
 
     //concatenation &
-    fn stage01(this: *@This()) ?lex.Token {
-        _ = this;
+    fn stage01(this: *@This()) ?Token {
+        var result_lhs = this.stage02();
+        if (this.current_token) |token_operator| {
+            var result_rhs: ?Token = null;
+
+            while (token_operator.*.token_type == TokenType.ampersand) {
+                this.consumeToken();
+                result_rhs = this.stage02();
+                this.triggerStackSequenceBinary(StackSequence.concatenate(), &result_lhs, &result_rhs);
+                return null;
+            }
+        }
+        return result_lhs;
     }
 
     //addition and subtraction +,-
-    fn stage02(this: *@This()) ?lex.Token {
-        _ = this;
+    fn stage02(this: *@This()) ?Token {
+        var result_lhs = this.stage03();
+        if (this.current_token) |token_operator| {
+            var result_rhs: ?Token = null;
+
+            while (token_operator.*.token_type == TokenType.plus) {
+                this.consumeToken();
+                result_rhs = this.stage03();
+                this.triggerStackSequenceBinary(StackSequence.add(), &result_lhs, &result_rhs);
+                return null;
+            }
+
+            while (token_operator.*.token_type == TokenType.minus) {
+                this.consumeToken();
+                result_rhs = this.stage03();
+                this.triggerStackSequenceBinary(StackSequence.subtract(), &result_lhs, &result_lhs);
+                return null;
+            }
+        }
+        return result_lhs;
     }
 
     //multiplication and division *,/
-    fn stage03(this: *@This()) ?lex.Token {
-        _ = this;
+    fn stage03(this: *@This()) ?Token {
+        var result_lhs = this.stage04();
+        if (this.current_token) |token_operator| {
+            var result_rhs: ?Token = null;
+
+            while (token_operator.*.token_type == TokenType.asterisk) {
+                this.consumeToken();
+                result_rhs = this.stage04();
+                this.triggerStackSequenceBinary(StackSequence.multipy(), &result_lhs, result_rhs);
+                return null;
+            }
+
+            while (token_operator.*.token_type == TokenType.forward_slash) {
+                this.consumeToken();
+                result_rhs = this.stage04();
+                this.triggerStackSequenceBinary(StackSequence.divide(), &result_lhs, &result_rhs);
+                return null;
+            }
+        }
+        return result_lhs;
     }
 
     //exponentiation ^
-    fn stage04(this: *@This()) ?lex.Token {
-        _ = this;
+    fn stage04(this: *@This()) ?Token {
+        var result_lhs = this.stage05();
+        if (this.current_token) |token_operator| {
+            _ = token_operator;
+            var result_rhs: ?Token = null;
+            _ = result_rhs;
+        }
+        return result_lhs;
     }
 
     //percent %
-    fn stage05(this: *@This()) ?lex.Token {
-        _ = this;
+    fn stage05(this: *@This()) ?Token {
+        var result_lhs = this.stage06();
+        if (this.current_token) |token_operator| {
+            _ = token_operator;
+            var result_rhs: ?Token = null;
+            _ = result_rhs;
+        }
+        return result_lhs;
     }
 
     //negation -
-    fn stage06(this: *@This()) ?lex.Token {
-        _ = this;
+    fn stage06(this: *@This()) ?Token {
+        var result_lhs = this.stage07();
+        if (this.current_token) |token_operator| {
+            _ = token_operator;
+            var result_rhs: ?Token = null;
+            _ = result_rhs;
+        }
+        return result_lhs;
     }
 
     //reference operators :,' ',,
-    fn stage07(this: *@This()) ?lex.Token {
-        _ = this;
+    fn stage07(this: *@This()) ?Token {
+        var result_lhs = this.stage08();
+        if (this.current_token) |token_operator| {
+            _ = token_operator;
+            var result_rhs: ?Token = null;
+            _ = result_rhs;
+        }
+        return result_lhs;
     }
 
     //constant, sub section, formula
-    fn stage08(this: *@This()) ?lex.Token {
-        _ = this;
+    fn stage08(this: *@This()) ?Token {
+        if (this.current_token) |token_operand| {
+            switch (token_operand.token_type) {
+                TokenType.constant or TokenType.string => {
+                    const token = token_operand.*;
+                    this.consumeToken();
+                    return token;
+                },
+            }
+        } else {
+            return Error.expected_operand_is_missing;
+        }
     }
 
-    fn triggerStackSequenceBinary(this: *@This(), operator_function: StackSequence.OperatorFunction, lhs: *lex.Token, rhs: *lex.Token) void {
+    fn triggerStackSequenceBinary(this: *@This(), operator_function: StackSequence.OperatorFunction, lhs: *Token, rhs: *Token) void {
         if (this.first_token) {
             StackSequence.pushConstant(lhs);
             StackSequence.pushConstant(rhs);
@@ -98,7 +213,7 @@ const Parser = struct {
         rhs.* = null;
     }
 
-    fn triggerStackSequenceUnary(this: *@This(), operator_function: StackSequence.OperatorFunction, token: *lex.Token) void {
+    fn triggerStackSequenceUnary(this: *@This(), operator_function: StackSequence.OperatorFunction, token: *Token) void {
         _ = operator_function;
 
         if (token.* != null) {
@@ -107,24 +222,25 @@ const Parser = struct {
         if (this.first_token) {
             this.first_token = false;
         }
-
-        
     }
 };
 
-const Instructions = enum {
-    equal,
-    greaterThan,
-    lessThan,
-    greaterEqualThan,
-    lessEqualThan,
-    notEqualTo,
-};
+// const Instructions = enum {
+//     equal,
+//     greaterThan,
+//     lessThan,
+//     greaterEqualThan,
+//     lessEqualThan,
+//     notEqualTo,
+// };
 
 const StackSequence = struct {
+    
+
+
     const OperatorFunction = *const fn () void;
 
-    fn pushConstant(token: *lex.Token) void {
+    fn pushConstant(token: *Token) void {
         _ = token;
     }
     fn equal() void {}
@@ -133,4 +249,23 @@ const StackSequence = struct {
     fn greaterEqualThan() void {}
     fn lessEqualThan() void {}
     fn notEqualTo() void {}
+
+    fn concatenate() void {}
+
+    fn add() void {}
+    fn subtract() void {}
+
+    fn multipy() void {}
+    fn divide() void {}
 };
+
+
+test "parser"{
+
+    var lexer = lex.Lexer{};
+    lexer.init();
+
+    const source = "10*20";
+    try lexer.lex(source);
+
+}
