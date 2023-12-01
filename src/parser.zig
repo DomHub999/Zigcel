@@ -6,23 +6,25 @@ const Token = tok.Token;
 
 const Error = error{
     expected_operand_is_missing,
+    token_type_not_supported,
 };
 
-const Parser = struct {
-    lexer: *lex.Lexer,
+pub const Parser = struct {
+    lexer: *lex.Lexer = undefined,
     current_token: ?*Token = null,
     first_token: bool = true,
-    instruction_sequene:InstructionSequence = undefined,
+    instruction_sequence: InstructionSequence = undefined,
 
-    pub fn init(this:*@This(), lexer: *lex.Lexer)void{
-        this.instruction_sequene = InstructionSequence{};
-        this.instruction_sequene.init();
+    pub fn init(this: *@This(), lexer: *lex.Lexer) void {
+        this.instruction_sequence = InstructionSequence{};
+        this.instruction_sequence.init();
         this.lexer = lexer;
     }
 
-    pub fn parse(this:*@This()) InstructionSequence {
+    pub fn parse(this: *@This()) !InstructionSequence {
         this.consumeToken();
-        return this.instruction_sequene;
+        try this.stage00();
+        return this.instruction_sequence;
     }
 
     fn consumeToken(this: *@This()) void {
@@ -30,64 +32,56 @@ const Parser = struct {
     }
     //test monday
     //comparison =, >, <, >=, <=, <>
-    fn stage00(this: *@This()) void {
-        var result_lhs = this.stage01();
+    fn stage00(this: *@This()) !void {
+        var result_lhs = try this.stage01();
 
         if (this.current_token) |token_operator| {
             var result_rhs: ?Token = null;
 
-            while (token_operator.*.token == TokenType.equal_sign) {
+            while (token_operator.*.token_type == TokenType.equal_sign) {
                 this.consumeToken();
-                result_rhs = this.stage01();
-                this.triggerStackSequenceBinary(InstructionSequence.equal, &result_lhs, &result_rhs);
-                return null;
+                result_rhs = try this.stage01();
+                try this.triggerStackSequenceBinary(InstructionSequence.equal, &result_lhs, &result_rhs);
             }
 
-            while (token_operator.*.token == TokenType.greater_than_sign) {
+            while (token_operator.*.token_type == TokenType.greater_than_sign) {
                 this.consumeToken();
-                result_rhs = this.stage01();
-                this.triggerStackSequenceBinary(InstructionSequence.greaterThan, &result_lhs, &result_rhs);
-                return null;
+                result_rhs = try this.stage01();
+                try this.triggerStackSequenceBinary(InstructionSequence.greaterThan, &result_lhs, &result_rhs);
             }
-            while (token_operator.*.token == TokenType.less_than_sign) {
+            while (token_operator.*.token_type == TokenType.less_than_sign) {
                 this.consumeToken();
-                result_rhs = this.stage01();
-                this.triggerStackSequenceBinary(InstructionSequence.lessThan, &result_lhs, &result_rhs);
-                return null;
+                result_rhs = try this.stage01();
+                try this.triggerStackSequenceBinary(InstructionSequence.lessThan, &result_lhs, &result_rhs);
             }
-            while (token_operator.*.token == TokenType.greater_equal_to_sign) {
+            while (token_operator.*.token_type == TokenType.greater_equal_to_sign) {
                 this.consumeToken();
-                result_rhs = this.stage01();
-                this.triggerStackSequenceBinary(InstructionSequence.greaterEqualThan, &result_lhs, &result_rhs);
-                return null;
+                result_rhs = try this.stage01();
+                try this.triggerStackSequenceBinary(InstructionSequence.greaterEqualThan, &result_lhs, &result_rhs);
             }
-            while (token_operator.*.token == TokenType.less_equal_to_sign) {
+            while (token_operator.*.token_type == TokenType.less_equal_to_sign) {
                 this.consumeToken();
-                result_rhs = this.stage01();
-                this.triggerStackSequenceBinary(InstructionSequence.lessEqualThan, &result_lhs, &result_rhs);
-                return null;
+                result_rhs = try this.stage01();
+                try this.triggerStackSequenceBinary(InstructionSequence.lessEqualThan, &result_lhs, &result_rhs);
             }
-            while (token_operator.*.token == TokenType.not_equal_to_sign) {
+            while (token_operator.*.token_type == TokenType.not_equal_to_sign) {
                 this.consumeToken();
-                result_rhs = this.stage01();
-                this.triggerStackSequenceBinary(InstructionSequence.notEqualTo, &result_lhs, &result_rhs);
-                return null;
+                result_rhs = try this.stage01();
+                try this.triggerStackSequenceBinary(InstructionSequence.notEqualTo, &result_lhs, &result_rhs);
             }
         }
-
-        return result_lhs;
     }
 
     //concatenation &
-    fn stage01(this: *@This()) ?Token {
-        var result_lhs = this.stage02();
+    fn stage01(this: *@This()) !?Token {
+        var result_lhs = try this.stage02();
         if (this.current_token) |token_operator| {
             var result_rhs: ?Token = null;
 
             while (token_operator.*.token_type == TokenType.ampersand) {
                 this.consumeToken();
-                result_rhs = this.stage02();
-                this.triggerStackSequenceBinary(InstructionSequence.concatenate, &result_lhs, &result_rhs);
+                result_rhs = try this.stage02();
+                try this.triggerStackSequenceBinary(InstructionSequence.concatenate, &result_lhs, &result_rhs);
                 return null;
             }
         }
@@ -95,22 +89,22 @@ const Parser = struct {
     }
 
     //addition and subtraction +,-
-    fn stage02(this: *@This()) ?Token {
-        var result_lhs = this.stage03();
+    fn stage02(this: *@This()) !?Token {
+        var result_lhs = try this.stage03();
         if (this.current_token) |token_operator| {
             var result_rhs: ?Token = null;
 
             while (token_operator.*.token_type == TokenType.plus) {
                 this.consumeToken();
-                result_rhs = this.stage03();
-                this.triggerStackSequenceBinary(InstructionSequence.add, &result_lhs, &result_rhs);
+                result_rhs = try this.stage03();
+                try this.triggerStackSequenceBinary(InstructionSequence.add, &result_lhs, &result_rhs);
                 return null;
             }
 
             while (token_operator.*.token_type == TokenType.minus) {
                 this.consumeToken();
-                result_rhs = this.stage03();
-                this.triggerStackSequenceBinary(InstructionSequence.subtract, &result_lhs, &result_lhs);
+                result_rhs = try this.stage03();
+                try this.triggerStackSequenceBinary(InstructionSequence.subtract, &result_lhs, &result_lhs);
                 return null;
             }
         }
@@ -118,22 +112,22 @@ const Parser = struct {
     }
 
     //multiplication and division *,/
-    fn stage03(this: *@This()) ?Token {
-        var result_lhs = this.stage04();
+    fn stage03(this: *@This()) !?Token {
+        var result_lhs = try this.stage04();
         if (this.current_token) |token_operator| {
             var result_rhs: ?Token = null;
 
             while (token_operator.*.token_type == TokenType.asterisk) {
                 this.consumeToken();
-                result_rhs = this.stage04();
-                this.triggerStackSequenceBinary(InstructionSequence.multipy, &result_lhs, result_rhs);
+                result_rhs = try this.stage04();
+                try this.triggerStackSequenceBinary(InstructionSequence.multipy, &result_lhs, &result_rhs);
                 return null;
             }
 
             while (token_operator.*.token_type == TokenType.forward_slash) {
                 this.consumeToken();
-                result_rhs = this.stage04();
-                this.triggerStackSequenceBinary(InstructionSequence.divide, &result_lhs, &result_rhs);
+                result_rhs = try this.stage04();
+                try this.triggerStackSequenceBinary(InstructionSequence.divide, &result_lhs, &result_rhs);
                 return null;
             }
         }
@@ -141,8 +135,8 @@ const Parser = struct {
     }
 
     //exponentiation ^
-    fn stage04(this: *@This()) ?Token {
-        var result_lhs = this.stage05();
+    fn stage04(this: *@This()) !?Token {
+        var result_lhs = try this.stage05();
         if (this.current_token) |token_operator| {
             _ = token_operator;
             var result_rhs: ?Token = null;
@@ -152,8 +146,8 @@ const Parser = struct {
     }
 
     //percent %
-    fn stage05(this: *@This()) ?Token {
-        var result_lhs = this.stage06();
+    fn stage05(this: *@This()) !?Token {
+        var result_lhs = try this.stage06();
         if (this.current_token) |token_operator| {
             _ = token_operator;
             var result_rhs: ?Token = null;
@@ -163,8 +157,8 @@ const Parser = struct {
     }
 
     //negation -
-    fn stage06(this: *@This()) ?Token {
-        var result_lhs = this.stage07();
+    fn stage06(this: *@This()) !?Token {
+        var result_lhs = try this.stage07();
         if (this.current_token) |token_operator| {
             _ = token_operator;
             var result_rhs: ?Token = null;
@@ -174,8 +168,8 @@ const Parser = struct {
     }
 
     //reference operators :,' ',,
-    fn stage07(this: *@This()) ?Token {
-        var result_lhs = this.stage08();
+    fn stage07(this: *@This()) !?Token {
+        var result_lhs = try this.stage08();
         if (this.current_token) |token_operator| {
             _ = token_operator;
             var result_rhs: ?Token = null;
@@ -184,14 +178,23 @@ const Parser = struct {
         return result_lhs;
     }
 
-    //constant, sub section, formula
-    fn stage08(this: *@This()) ?Token {
+    //constant, sub section, formula, string
+    fn stage08(this: *@This()) !?Token {
         if (this.current_token) |token_operand| {
             switch (token_operand.token_type) {
-                TokenType.constant or TokenType.string => {
+                TokenType.constant => {
                     const token = token_operand.*;
                     this.consumeToken();
                     return token;
+                },
+
+                TokenType.string => {
+                    const token = token_operand.*;
+                    this.consumeToken();
+                    return token;
+                },
+                else => {
+                    return Error.token_type_not_supported;
                 },
             }
         } else {
@@ -199,28 +202,32 @@ const Parser = struct {
         }
     }
 
-    fn triggerStackSequenceBinary(this: *@This(), operator_function: InstructionSequence.OperatorFunction, lhs: *Token, rhs: *Token) void {
+    fn triggerStackSequenceBinary(this: *@This(), operator_function: InstructionSequence.OperatorFunction, lhs: *?Token, rhs: *?Token) !void {
         if (this.first_token) {
-            InstructionSequence.pushConstant(lhs);
-            InstructionSequence.pushConstant(rhs);
+            if (lhs.* != null) {
+                try this.instruction_sequence.pushConstant(&(lhs.*.?));
+            }
+            if (rhs.* != null) {
+                try this.instruction_sequence.pushConstant(&(rhs.*.?));
+            }
             this.first_token = false;
         } else {
             if (lhs.* != null) {
-                InstructionSequence.pushConstant(&this.instruction_sequene, lhs);
+                try InstructionSequence.pushConstant(&this.instruction_sequence, &(lhs.*.?));
             }
 
             if (rhs.* != null) {
-                InstructionSequence.pushConstant(&this.instruction_sequence, rhs);
+                try InstructionSequence.pushConstant(&this.instruction_sequence, &(rhs.*.?));
             }
         }
 
-        operator_function();
+        try operator_function(&this.instruction_sequence);
 
         lhs.* = null;
         rhs.* = null;
     }
 
-    fn triggerStackSequenceUnary(this: *@This(), operator_function: InstructionSequence.OperatorFunction, token: *Token) void {
+    fn triggerStackSequenceUnary(this: *@This(), operator_function: InstructionSequence.OperatorFunction, token: *Token) !void {
         _ = operator_function;
 
         if (token.* != null) {
@@ -240,7 +247,14 @@ const Instructions = enum {
     lessEqualThan,
     notEqualTo,
 
+    add,
+    subtract,
+    multiply,
+    divide,
+
     push,
+
+    call_concat_strings,
 };
 
 const InstructionType = enum {
@@ -248,10 +262,10 @@ const InstructionType = enum {
     stack_operation,
 };
 
-const Instruction = union(InstructionType) {
-    single_instruction: Instruction,
+pub const Instruction = union(InstructionType) {
+    single_instruction: Instructions,
     stack_operation: struct {
-        instruction: Instruction,
+        instruction: Instructions,
         token: Token,
     },
 };
@@ -261,43 +275,54 @@ const InstructionSequence = struct {
     instruction_list: array_list_type = undefined,
 
     pub fn init(this: *@This()) void {
-        this.instruction_list.init(std.heap.page_allocator);
+        this.instruction_list = array_list_type.init(std.heap.page_allocator);
     }
 
     pub fn drop(this: *@This()) void {
         this.instruction_list.deinit();
     }
 
-    const OperatorFunction = *const fn (this:*@This()) void;
+    const OperatorFunction = *const fn (this: *@This()) std.mem.Allocator.Error!void;
 
-    fn pushConstant(token: *Token) void {
-        _ = token;
+    fn pushConstant(this: *@This(), token: *Token) std.mem.Allocator.Error!void {
+        try this.instruction_list.append(Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = token.* } });
     }
-    fn equal(this:*@This()) void {
-        _ = this;}
-    fn greaterThan(this:*@This()) void {
-        _ = this;}
-    fn lessThan(this:*@This()) void {
-        _ = this;}
-    fn greaterEqualThan(this:*@This()) void {
-        _ = this;}
-    fn lessEqualThan(this:*@This()) void {
-        _ = this;}
-    fn notEqualTo(this:*@This()) void {
-        _ = this;}
+    fn equal(this: *@This()) std.mem.Allocator.Error!void {
+        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.equal });
+    }
+    fn greaterThan(this: *@This()) std.mem.Allocator.Error!void {
+        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.greaterThan });
+    }
+    fn lessThan(this: *@This()) std.mem.Allocator.Error!void {
+        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.lessThan });
+    }
+    fn greaterEqualThan(this: *@This()) std.mem.Allocator.Error!void {
+        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.greaterEqualThan });
+    }
+    fn lessEqualThan(this: *@This()) std.mem.Allocator.Error!void {
+        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.lessEqualThan });
+    }
+    fn notEqualTo(this: *@This()) std.mem.Allocator.Error!void {
+        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.notEqualTo });
+    }
 
-    fn concatenate(this:*@This()) void {
-        _ = this;}
+    fn concatenate(this: *@This()) std.mem.Allocator.Error!void {
+        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.call_concat_strings });
+    }
 
-    fn add(this:*@This()) void {
-        _ = this;}
-    fn subtract(this:*@This()) void {
-        _ = this;}
+    fn add(this: *@This()) std.mem.Allocator.Error!void {
+        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.add });
+    }
+    fn subtract(this: *@This()) std.mem.Allocator.Error!void {
+        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.subtract });
+    }
 
-    fn multipy(this:*@This()) void {
-        _ = this;}
-    fn divide(this:*@This()) void {
-        _ = this;}
+    fn multipy(this: *@This()) std.mem.Allocator.Error!void {
+        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.multiply });
+    }
+    fn divide(this: *@This()) std.mem.Allocator.Error!void {
+        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.divide });
+    }
 };
 
 test "parser" {
@@ -306,4 +331,9 @@ test "parser" {
 
     const source = "10*20";
     try lexer.lex(source);
+
+    var parser = Parser{};
+    parser.init(&lexer);
+    const instruction_sequence = parser.parse();
+    _ = instruction_sequence;
 }

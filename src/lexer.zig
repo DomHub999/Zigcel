@@ -58,7 +58,7 @@ pub const Lexer = struct {
     }
 
     fn skipToNextValidToken(this: *@This()) void {
-        while (this.token_list.items[this.current_token].valid_token == false and this.current_token < this.token_list.items.len) {
+        while (this.current_token < this.token_list.items.len and this.token_list.items[this.current_token].valid_token == false) {
             this.current_token += 1;
         }
     }
