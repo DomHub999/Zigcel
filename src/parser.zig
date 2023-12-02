@@ -3,6 +3,7 @@ const lex = @import("lexer.zig");
 const tok = @import("token.zig");
 const TokenType = tok.TokenType;
 const Token = tok.Token;
+const TokenPair = tok.TokenPair;
 
 const Error = error{
     expected_operand_is_missing,
@@ -23,64 +24,64 @@ pub const Parser = struct {
 
     pub fn parse(this: *@This()) !InstructionSequence {
         this.consumeToken();
-        try this.stage00();
+        try this.stage06();
         return this.instruction_sequence;
     }
 
     fn consumeToken(this: *@This()) void {
         this.current_token = this.lexer.getNext();
     }
-    //test monday
+    
     //comparison =, >, <, >=, <=, <>
-    fn stage00(this: *@This()) !void {
-        var result_lhs = try this.stage01();
+    fn stage06(this: *@This()) !void {
+        var result_lhs = try this.stage05();
 
         if (this.current_token) |token_operator| {
             var result_rhs: ?Token = null;
 
             while (token_operator.*.token_type == TokenType.equal_sign) {
                 this.consumeToken();
-                result_rhs = try this.stage01();
+                result_rhs = try this.stage05();
                 try this.triggerStackSequenceBinary(InstructionSequence.equal, &result_lhs, &result_rhs);
             }
 
             while (token_operator.*.token_type == TokenType.greater_than_sign) {
                 this.consumeToken();
-                result_rhs = try this.stage01();
+                result_rhs = try this.stage05();
                 try this.triggerStackSequenceBinary(InstructionSequence.greaterThan, &result_lhs, &result_rhs);
             }
             while (token_operator.*.token_type == TokenType.less_than_sign) {
                 this.consumeToken();
-                result_rhs = try this.stage01();
+                result_rhs = try this.stage05();
                 try this.triggerStackSequenceBinary(InstructionSequence.lessThan, &result_lhs, &result_rhs);
             }
             while (token_operator.*.token_type == TokenType.greater_equal_to_sign) {
                 this.consumeToken();
-                result_rhs = try this.stage01();
+                result_rhs = try this.stage05();
                 try this.triggerStackSequenceBinary(InstructionSequence.greaterEqualThan, &result_lhs, &result_rhs);
             }
             while (token_operator.*.token_type == TokenType.less_equal_to_sign) {
                 this.consumeToken();
-                result_rhs = try this.stage01();
+                result_rhs = try this.stage05();
                 try this.triggerStackSequenceBinary(InstructionSequence.lessEqualThan, &result_lhs, &result_rhs);
             }
             while (token_operator.*.token_type == TokenType.not_equal_to_sign) {
                 this.consumeToken();
-                result_rhs = try this.stage01();
+                result_rhs = try this.stage05();
                 try this.triggerStackSequenceBinary(InstructionSequence.notEqualTo, &result_lhs, &result_rhs);
             }
         }
     }
 
     //concatenation &
-    fn stage01(this: *@This()) !?Token {
-        var result_lhs = try this.stage02();
+    fn stage05(this: *@This()) !?Token {
+        var result_lhs = try this.stage04();
         if (this.current_token) |token_operator| {
             var result_rhs: ?Token = null;
 
             while (token_operator.*.token_type == TokenType.ampersand) {
                 this.consumeToken();
-                result_rhs = try this.stage02();
+                result_rhs = try this.stage04();
                 try this.triggerStackSequenceBinary(InstructionSequence.concatenate, &result_lhs, &result_rhs);
                 return null;
             }
@@ -89,7 +90,7 @@ pub const Parser = struct {
     }
 
     //addition and subtraction +,-
-    fn stage02(this: *@This()) !?Token {
+    fn stage04(this: *@This()) !?Token {
         var result_lhs = try this.stage03();
         if (this.current_token) |token_operator| {
             var result_rhs: ?Token = null;
@@ -113,20 +114,20 @@ pub const Parser = struct {
 
     //multiplication and division *,/
     fn stage03(this: *@This()) !?Token {
-        var result_lhs = try this.stage04();
+        var result_lhs = try this.stage02();
         if (this.current_token) |token_operator| {
             var result_rhs: ?Token = null;
 
             while (token_operator.*.token_type == TokenType.asterisk) {
                 this.consumeToken();
-                result_rhs = try this.stage04();
+                result_rhs = try this.stage02();
                 try this.triggerStackSequenceBinary(InstructionSequence.multipy, &result_lhs, &result_rhs);
                 return null;
             }
 
             while (token_operator.*.token_type == TokenType.forward_slash) {
                 this.consumeToken();
-                result_rhs = try this.stage04();
+                result_rhs = try this.stage02();
                 try this.triggerStackSequenceBinary(InstructionSequence.divide, &result_lhs, &result_rhs);
                 return null;
             }
@@ -135,14 +136,14 @@ pub const Parser = struct {
     }
 
     //exponentiation ^
-    fn stage04(this: *@This()) !?Token {
-        var result_lhs = try this.stage05();
+    fn stage02(this: *@This()) !?Token {
+        var result_lhs = try this.stage01();
         if (this.current_token) |token_operator| {
             var result_rhs: ?Token = null;
 
             while (token_operator.*.token_type == TokenType.caret) {
                 this.consumeToken();
-                result_rhs = try this.stage05();
+                result_rhs = try this.stage01();
                 try this.triggerStackSequenceBinary(InstructionSequence.toThePowerOf, &result_lhs, &result_rhs);
                 return null;
             }
@@ -150,42 +151,42 @@ pub const Parser = struct {
         return result_lhs;
     }
 
-    //percent %
-    fn stage05(this: *@This()) !?Token {
-        var result_lhs = try this.stage06();
-        if (this.current_token) |token_operator| {
-            // var result_rhs: ?Token = null;
+    // //percent %
+    // fn stage05(this: *@This()) !?Token {
+    //     var result_lhs = try this.stage06();
+    //     if (this.current_token) |token_operator| {
+    //         // var result_rhs: ?Token = null;
 
-            while (token_operator.*.token_type == TokenType.percent_sign) {
-                this.consumeToken();
-                //result_rhs = try this.stage06();
-                try this.triggerStackSequenceUnary(InstructionSequence.percentOf, &result_lhs);
-                return null;
-            }
-        }
-        return result_lhs;
-    }
+    //         while (token_operator.*.token_type == TokenType.percent_sign) {
+    //             this.consumeToken();
+    //             //result_rhs = try this.stage06();
+    //             try this.triggerStackSequenceUnary(InstructionSequence.percentOf, &result_lhs);
+    //             return null;
+    //         }
+    //     }
+    //     return result_lhs;
+    // }
 
-    //negation -
-    fn stage06(this: *@This()) !?Token {
-        // var result_lhs = try this.stage07();
-        if (this.current_token) |token_operator| {
-            var result_rhs: ?Token = null;
+    // //negation -
+    // fn stage06(this: *@This()) !?Token {
+    //     // var result_lhs = try this.stage07();
+    //     if (this.current_token) |token_operator| {
+    //         var result_rhs: ?Token = null;
 
-            while (token_operator.*.token_type == TokenType.minus) {
-                this.consumeToken();
-                result_rhs = try this.stage07();
-                try this.triggerStackSequenceUnary(InstructionSequence.negate, &result_rhs);
-                return null;
-            }
-        }
-        var result_lhs = try this.stage07();
-        return result_lhs;
-    }
+    //         while (token_operator.*.token_type == TokenType.minus) {
+    //             this.consumeToken();
+    //             result_rhs = try this.stage07();
+    //             try this.triggerStackSequenceUnary(InstructionSequence.negate, &result_rhs);
+    //             return null;
+    //         }
+    //     }
+    //     var result_lhs = try this.stage07();
+    //     return result_lhs;
+    // }
 
     //reference operators :,' ',,
-    fn stage07(this: *@This()) !?Token {
-        var result_lhs = try this.stage08();
+    fn stage01(this: *@This()) !?Token {
+        var result_lhs = try this.stage00();
         if (this.current_token) |token_operator| {
             _ = token_operator;
             var result_rhs: ?Token = null;
@@ -195,7 +196,7 @@ pub const Parser = struct {
     }
 
     //constant, sub section, formula, string
-    fn stage08(this: *@This()) !?Token {
+    fn stage00(this: *@This()) !?Token {
         if (this.current_token) |token_operand| {
             switch (token_operand.token_type) {
                 TokenType.constant => {
