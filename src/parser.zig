@@ -138,9 +138,14 @@ pub const Parser = struct {
     fn stage04(this: *@This()) !?Token {
         var result_lhs = try this.stage05();
         if (this.current_token) |token_operator| {
-            _ = token_operator;
             var result_rhs: ?Token = null;
-            _ = result_rhs;
+
+            while (token_operator.*.token_type == TokenType.caret) {
+                this.consumeToken();
+                result_rhs = try this.stage05();
+                try this.triggerStackSequenceBinary(InstructionSequence.toThePowerOf, &result_lhs, &result_rhs);
+                return null;
+            }
         }
         return result_lhs;
     }
@@ -149,21 +154,32 @@ pub const Parser = struct {
     fn stage05(this: *@This()) !?Token {
         var result_lhs = try this.stage06();
         if (this.current_token) |token_operator| {
-            _ = token_operator;
-            var result_rhs: ?Token = null;
-            _ = result_rhs;
+            // var result_rhs: ?Token = null;
+
+            while (token_operator.*.token_type == TokenType.percent_sign) {
+                this.consumeToken();
+                //result_rhs = try this.stage06();
+                try this.triggerStackSequenceUnary(InstructionSequence.percentOf, &result_lhs);
+                return null;
+            }
         }
         return result_lhs;
     }
 
     //negation -
     fn stage06(this: *@This()) !?Token {
-        var result_lhs = try this.stage07();
+        // var result_lhs = try this.stage07();
         if (this.current_token) |token_operator| {
-            _ = token_operator;
             var result_rhs: ?Token = null;
-            _ = result_rhs;
+
+            while (token_operator.*.token_type == TokenType.minus) {
+                this.consumeToken();
+                result_rhs = try this.stage07();
+                try this.triggerStackSequenceUnary(InstructionSequence.negate, &result_rhs);
+                return null;
+            }
         }
+        var result_lhs = try this.stage07();
         return result_lhs;
     }
 
@@ -177,9 +193,6 @@ pub const Parser = struct {
         }
         return result_lhs;
     }
-
-
-    
 
     //constant, sub section, formula, string
     fn stage08(this: *@This()) !?Token {
@@ -230,15 +243,16 @@ pub const Parser = struct {
         rhs.* = null;
     }
 
-    fn triggerStackSequenceUnary(this: *@This(), operator_function: InstructionSequence.OperatorFunction, token: *Token) !void {
-        _ = operator_function;
+    fn triggerStackSequenceUnary(this: *@This(), operator_function: InstructionSequence.OperatorFunction, token: *?Token) !void {
 
         if (token.* != null) {
-            InstructionSequence.pushConstant(&this.instruction_sequence, token);
+            try InstructionSequence.pushConstant(&this.instruction_sequence, &(token.*.?));
         }
         if (this.first_token) {
             this.first_token = false;
         }
+
+        try operator_function(&this.instruction_sequence);
     }
 };
 
@@ -257,10 +271,16 @@ const Instructions = enum {
 
     push,
 
-    call_concat_strings,
+    concat_stringss,
+
+    to_the_power_of,
+
+    percent_of,
+
+    negate,
 };
 
-const InstructionType = enum {
+pub const InstructionType = enum {
     single_instruction,
     stack_operation,
 };
@@ -310,7 +330,7 @@ const InstructionSequence = struct {
     }
 
     fn concatenate(this: *@This()) std.mem.Allocator.Error!void {
-        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.call_concat_strings });
+        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.concat_stringss });
     }
 
     fn add(this: *@This()) std.mem.Allocator.Error!void {
@@ -325,6 +345,16 @@ const InstructionSequence = struct {
     }
     fn divide(this: *@This()) std.mem.Allocator.Error!void {
         try this.instruction_list.append(Instruction{ .single_instruction = Instructions.divide });
+    }
+
+    fn toThePowerOf(this: *@This()) std.mem.Allocator.Error!void {
+        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.to_the_power_of });
+    }
+    fn percentOf(this: *@This()) std.mem.Allocator.Error!void {
+        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.percent_of });
+    }
+    fn negate(this: *@This()) std.mem.Allocator.Error!void {
+        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.negate });
     }
 };
 
@@ -371,7 +401,7 @@ test "strings" {
     var solution = [_]Instruction{
         Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.string } } },
         Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.string } } },
-        Instruction{ .single_instruction = Instructions.call_concat_strings },
+        Instruction{ .single_instruction = Instructions.concat_stringss },
     };
 
     @memcpy(solution[0].stack_operation.token.token[0..3], "abc");
@@ -380,6 +410,28 @@ test "strings" {
     try compareSolutionToinstrSeq(&solution, &instruction_sequence);
 }
 
+test "negate/percent/power" {
+    var lexer = lex.Lexer{};
+    lexer.init();
+
+    const source = "-10^300%";
+    try lexer.lex(source);
+
+    var parser = Parser{};
+    parser.init(&lexer);
+    const instruction_sequence = try parser.parse();
+
+    var solution = [_]Instruction{
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.string } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.string } } },
+        Instruction{ .single_instruction = Instructions.concat_stringss },
+    };
+
+    @memcpy(solution[0].stack_operation.token.token[0..3], "abc");
+    @memcpy(solution[1].stack_operation.token.token[0..3], "def");
+
+    try compareSolutionToinstrSeq(&solution, &instruction_sequence);
+}
 
 fn compareSolutionToinstrSeq(solution: []Instruction, instruction_sequence: *const InstructionSequence) !void {
     for (solution, instruction_sequence.*.instruction_list.items) |sol, itm| {
