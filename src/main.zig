@@ -6,18 +6,17 @@ pub fn main() !void {
     var lexer = lex.Lexer{};
     lexer.init();
 
-    // const source = "-10^300%";
-    //const source = "10^-300%";
+     //const source = "-10^300%";
+    const source = "10^-300%";
     //const source = "10/-5";
-    const source = "10/5";
+    // const source = "10/5";
+    //const source = "100/50+10*20";
 
     try lexer.lex(source);
 
     var parser = par.Parser{};
     parser.init(&lexer);
     const instruction_sequence = try parser.parse();
-
-    
 
     for (instruction_sequence.instruction_list.items) |value| {
         switch (value) {
@@ -29,4 +28,21 @@ pub fn main() !void {
             },
         }
     }
+
+    // const s = someStruct{ .fp = func };
+
+    // if (s.fp) |f| {
+    //     std.debug.print("{any}\n", .{s.fp});
+    //     f();
+    // }
 }
+
+// const someStruct = struct {
+//     fp: ?fnPoint = null,
+// };
+
+// const fnPoint = *const fn () void;
+
+// fn func() void {
+//     std.debug.print("wurst{c}", .{' '});
+// }

@@ -8,6 +8,12 @@ const TokenPair = tok.TokenPair;
 const Error = error{
     expected_operand_is_missing,
     token_type_not_supported,
+    no_operand_to_negate_available,
+};
+
+const TokenOperatorFunc = struct {
+    token: tok.Token,
+    operator_function: ?InstructionSequence.OperatorFunction = null,
 };
 
 pub const Parser = struct {
@@ -31,13 +37,13 @@ pub const Parser = struct {
     fn consumeToken(this: *@This()) void {
         this.current_token = this.lexer.getNext();
     }
-    
+
     //comparison =, >, <, >=, <=, <>
     fn stage06(this: *@This()) !void {
         var result_lhs = try this.stage05();
 
         if (this.current_token) |token_operator| {
-            var result_rhs: ?Token = null;
+            var result_rhs: ?TokenOperatorFunc = null;
 
             while (token_operator.*.token_type == TokenType.equal_sign) {
                 this.consumeToken();
@@ -74,10 +80,10 @@ pub const Parser = struct {
     }
 
     //concatenation &
-    fn stage05(this: *@This()) !?Token {
+    fn stage05(this: *@This()) !?TokenOperatorFunc {
         var result_lhs = try this.stage04();
         if (this.current_token) |token_operator| {
-            var result_rhs: ?Token = null;
+            var result_rhs: ?TokenOperatorFunc = null;
 
             while (token_operator.*.token_type == TokenType.ampersand) {
                 this.consumeToken();
@@ -90,10 +96,10 @@ pub const Parser = struct {
     }
 
     //addition and subtraction +,-
-    fn stage04(this: *@This()) !?Token {
+    fn stage04(this: *@This()) !?TokenOperatorFunc {
         var result_lhs = try this.stage03();
         if (this.current_token) |token_operator| {
-            var result_rhs: ?Token = null;
+            var result_rhs: ?TokenOperatorFunc = null;
 
             while (token_operator.*.token_type == TokenType.plus) {
                 this.consumeToken();
@@ -113,10 +119,10 @@ pub const Parser = struct {
     }
 
     //multiplication and division *,/
-    fn stage03(this: *@This()) !?Token {
+    fn stage03(this: *@This()) !?TokenOperatorFunc {
         var result_lhs = try this.stage02();
         if (this.current_token) |token_operator| {
-            var result_rhs: ?Token = null;
+            var result_rhs: ?TokenOperatorFunc = null;
 
             while (token_operator.*.token_type == TokenType.asterisk) {
                 this.consumeToken();
@@ -128,6 +134,7 @@ pub const Parser = struct {
             while (token_operator.*.token_type == TokenType.forward_slash) {
                 this.consumeToken();
                 result_rhs = try this.stage02();
+                // std.debug.print("{any}\n", .{result_rhs.?.operator_function});
                 try this.triggerStackSequenceBinary(InstructionSequence.divide, &result_lhs, &result_rhs);
                 return null;
             }
@@ -136,10 +143,10 @@ pub const Parser = struct {
     }
 
     //exponentiation ^
-    fn stage02(this: *@This()) !?Token {
+    fn stage02(this: *@This()) !?TokenOperatorFunc {
         var result_lhs = try this.stage01();
         if (this.current_token) |token_operator| {
-            var result_rhs: ?Token = null;
+            var result_rhs: ?TokenOperatorFunc = null;
 
             while (token_operator.*.token_type == TokenType.caret) {
                 this.consumeToken();
@@ -151,64 +158,43 @@ pub const Parser = struct {
         return result_lhs;
     }
 
-    // //percent %
-    // fn stage05(this: *@This()) !?Token {
-    //     var result_lhs = try this.stage06();
-    //     if (this.current_token) |token_operator| {
-    //         // var result_rhs: ?Token = null;
-
-    //         while (token_operator.*.token_type == TokenType.percent_sign) {
-    //             this.consumeToken();
-    //             //result_rhs = try this.stage06();
-    //             try this.triggerStackSequenceUnary(InstructionSequence.percentOf, &result_lhs);
-    //             return null;
-    //         }
-    //     }
-    //     return result_lhs;
-    // }
-
-    // //negation -
-    // fn stage06(this: *@This()) !?Token {
-    //     // var result_lhs = try this.stage07();
-    //     if (this.current_token) |token_operator| {
-    //         var result_rhs: ?Token = null;
-
-    //         while (token_operator.*.token_type == TokenType.minus) {
-    //             this.consumeToken();
-    //             result_rhs = try this.stage07();
-    //             try this.triggerStackSequenceUnary(InstructionSequence.negate, &result_rhs);
-    //             return null;
-    //         }
-    //     }
-    //     var result_lhs = try this.stage07();
-    //     return result_lhs;
-    // }
-
     //reference operators :,' ',,
-    fn stage01(this: *@This()) !?Token {
+    fn stage01(this: *@This()) !?TokenOperatorFunc {
         var result_lhs = try this.stage00();
         if (this.current_token) |token_operator| {
             _ = token_operator;
-            var result_rhs: ?Token = null;
+            var result_rhs: ?TokenOperatorFunc = null;
             _ = result_rhs;
         }
         return result_lhs;
     }
 
     //constant, sub section, formula, string
-    fn stage00(this: *@This()) !?Token {
+    fn stage00(this: *@This()) !?TokenOperatorFunc {
         if (this.current_token) |token_operand| {
             switch (token_operand.token_type) {
                 TokenType.constant => {
-                    const token = token_operand.*;
+                    const token_fnc = TokenOperatorFunc{ .token = token_operand.* };
                     this.consumeToken();
-                    return token;
+                    return token_fnc;
                 },
 
                 TokenType.string => {
-                    const token = token_operand.*;
+                    const token_fnc = TokenOperatorFunc{ .token = token_operand.* };
                     this.consumeToken();
-                    return token;
+                    return token_fnc;
+                },
+
+                TokenType.minus => {
+                    this.consumeToken();
+                    if (this.current_token) |operand_negate| {
+                        var token_fnc = TokenOperatorFunc{ .token = operand_negate.* };
+                        token_fnc.operator_function = InstructionSequence.negate;
+                        this.consumeToken();
+                        return token_fnc;
+                    } else {
+                        return Error.no_operand_to_negate_available;
+                    }
                 },
                 else => {
                     return Error.token_type_not_supported;
@@ -219,22 +205,58 @@ pub const Parser = struct {
         }
     }
 
-    fn triggerStackSequenceBinary(this: *@This(), operator_function: InstructionSequence.OperatorFunction, lhs: *?Token, rhs: *?Token) !void {
+    fn triggerStackSequenceBinary(this: *@This(), operator_function: InstructionSequence.OperatorFunction, lhs: *?TokenOperatorFunc, rhs: *?TokenOperatorFunc) !void {
+
+        //std.debug.print("{any}\n", .{rhs.*.?.operator_function});
+        // try rhs.*.?.operator_function.?(&this.instruction_sequence);
+
         if (this.first_token) {
             if (lhs.* != null) {
-                try this.instruction_sequence.pushConstant(&(lhs.*.?));
+                try this.instruction_sequence.pushConstant(&(lhs.*.?.token));
+
+                if (lhs.*.?.operator_function != null) {
+                    try lhs.*.?.operator_function.?(&this.instruction_sequence);
+                }
+
+                // if (lhs.*.?.operator_function) |func| {
+                //     try func(&this.instruction_sequence);
+                // } else {
+                //     //std.debug.print("lhs is null{}\n",.{1});
+                // }
             }
             if (rhs.* != null) {
-                try this.instruction_sequence.pushConstant(&(rhs.*.?));
+                try this.instruction_sequence.pushConstant(&(rhs.*.?.token));
+                if (rhs.*.?.operator_function != null) {
+                    try rhs.*.?.operator_function.?(&this.instruction_sequence);
+                }
+
+                // if (lhs.*.?.operator_function) |func| {
+                //     try func(&this.instruction_sequence);
+
+                // } else {
+                //     //std.debug.print("rhs is null{}\n",.{2});
+                // }
             }
             this.first_token = false;
         } else {
             if (lhs.* != null) {
-                try InstructionSequence.pushConstant(&this.instruction_sequence, &(lhs.*.?));
+                try InstructionSequence.pushConstant(&this.instruction_sequence, &(lhs.*.?.token));
+                if (lhs.*.?.operator_function != null) {
+                    try lhs.*.?.operator_function.?(&this.instruction_sequence);
+                }
+                // if (lhs.*.?.operator_function) |func| {
+                //     try func(&this.instruction_sequence);
+                // }
             }
 
             if (rhs.* != null) {
-                try InstructionSequence.pushConstant(&this.instruction_sequence, &(rhs.*.?));
+                try InstructionSequence.pushConstant(&this.instruction_sequence, &(rhs.*.?.token));
+                if (rhs.*.?.operator_function != null) {
+                    try rhs.*.?.operator_function.?(&this.instruction_sequence);
+                }
+                // if (lhs.*.?.operator_function) |func| {
+                //     try func(&this.instruction_sequence);
+                // }
             }
         }
 
@@ -242,18 +264,6 @@ pub const Parser = struct {
 
         lhs.* = null;
         rhs.* = null;
-    }
-
-    fn triggerStackSequenceUnary(this: *@This(), operator_function: InstructionSequence.OperatorFunction, token: *?Token) !void {
-
-        if (token.* != null) {
-            try InstructionSequence.pushConstant(&this.instruction_sequence, &(token.*.?));
-        }
-        if (this.first_token) {
-            this.first_token = false;
-        }
-
-        try operator_function(&this.instruction_sequence);
     }
 };
 
