@@ -178,6 +178,9 @@ pub const Parser = struct {
         return result_lhs;
     }
 
+
+    
+
     //constant, sub section, formula, string
     fn stage08(this: *@This()) !?Token {
         if (this.current_token) |token_operand| {
@@ -325,15 +328,69 @@ const InstructionSequence = struct {
     }
 };
 
-test "parser" {
+test "100/50+10*20" {
     var lexer = lex.Lexer{};
     lexer.init();
 
-    const source = "10*20";
+    const source = "100/50+10*20";
     try lexer.lex(source);
 
     var parser = Parser{};
     parser.init(&lexer);
-    const instruction_sequence = parser.parse();
-    _ = instruction_sequence;
+    const instruction_sequence = try parser.parse();
+
+    var solution = [_]Instruction{
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.constant } } },
+        Instruction{ .single_instruction = Instructions.divide },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.constant } } },
+        Instruction{ .single_instruction = Instructions.multiply },
+        Instruction{ .single_instruction = Instructions.add },
+    };
+
+    @memcpy(solution[0].stack_operation.token.token[0..3], "100");
+    @memcpy(solution[1].stack_operation.token.token[0..2], "50");
+    @memcpy(solution[3].stack_operation.token.token[0..2], "10");
+    @memcpy(solution[4].stack_operation.token.token[0..2], "20");
+
+    try compareSolutionToinstrSeq(&solution, &instruction_sequence);
+}
+
+test "strings" {
+    var lexer = lex.Lexer{};
+    lexer.init();
+
+    const source = "\"abc\"&\"def\"";
+    try lexer.lex(source);
+
+    var parser = Parser{};
+    parser.init(&lexer);
+    const instruction_sequence = try parser.parse();
+
+    var solution = [_]Instruction{
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.string } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.string } } },
+        Instruction{ .single_instruction = Instructions.call_concat_strings },
+    };
+
+    @memcpy(solution[0].stack_operation.token.token[0..3], "abc");
+    @memcpy(solution[1].stack_operation.token.token[0..3], "def");
+
+    try compareSolutionToinstrSeq(&solution, &instruction_sequence);
+}
+
+
+fn compareSolutionToinstrSeq(solution: []Instruction, instruction_sequence: *const InstructionSequence) !void {
+    for (solution, instruction_sequence.*.instruction_list.items) |sol, itm| {
+        switch (sol) {
+            InstructionType.single_instruction => {
+                try std.testing.expect(sol.single_instruction == itm.single_instruction);
+            },
+            InstructionType.stack_operation => {
+                try std.testing.expect(sol.stack_operation.instruction == itm.stack_operation.instruction);
+                try std.testing.expect(std.mem.eql(u8, sol.stack_operation.token.token[0..], itm.stack_operation.token.token[0..]));
+            },
+        }
+    }
 }
