@@ -4,7 +4,6 @@ const Token = tok.Token;
 const MAX_TOKEN_SIZE = tok.MAX_TOKEN_SIZE;
 const TokenType = tok.TokenType;
 
-
 const Errors = error{
     character_nod_defined,
     token_type_cannot_be_determined,
@@ -57,6 +56,15 @@ pub const Lexer = struct {
         return token;
     }
 
+    pub fn peek(this: *@This()) ?*Token {
+        if (!this.hasNext()) {
+            return null;
+        }
+
+        const token = &this.token_list.items[this.current_token];
+        return token;
+    }
+
     fn skipToNextValidToken(this: *@This()) void {
         while (this.current_token < this.token_list.items.len and this.token_list.items[this.current_token].valid_token == false) {
             this.current_token += 1;
@@ -85,8 +93,6 @@ pub const Lexer = struct {
         }
     }
 };
-
-
 
 pub const TokenExtraction = struct {
     fn getNextToken(source: [*:0]const u8, current: usize, source_size: usize) !struct { token: Token, new_current: ?usize } {

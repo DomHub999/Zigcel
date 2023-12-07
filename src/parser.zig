@@ -134,7 +134,6 @@ pub const Parser = struct {
             while (token_operator.*.token_type == TokenType.forward_slash) {
                 this.consumeToken();
                 result_rhs = try this.stage02();
-                // std.debug.print("{any}\n", .{result_rhs.?.operator_function});
                 try this.triggerStackSequenceBinary(InstructionSequence.divide, &result_lhs, &result_rhs);
                 return null;
             }
@@ -174,8 +173,13 @@ pub const Parser = struct {
         if (this.current_token) |token_operand| {
             switch (token_operand.token_type) {
                 TokenType.constant => {
-                    const token_fnc = TokenOperatorFunc{ .token = token_operand.* };
+                    var token_fnc = TokenOperatorFunc{ .token = token_operand.* };
                     this.consumeToken();
+                    if (this.current_token) |possible_unary| {
+                        if (possible_unary.*.token_type == TokenType.percent_sign) {
+                            token_fnc.operator_function = InstructionSequence.percentOf;
+                        }
+                    }
                     return token_fnc;
                 },
 
@@ -191,6 +195,9 @@ pub const Parser = struct {
                         var token_fnc = TokenOperatorFunc{ .token = operand_negate.* };
                         token_fnc.operator_function = InstructionSequence.negate;
                         this.consumeToken();
+
+                        
+
                         return token_fnc;
                     } else {
                         return Error.no_operand_to_negate_available;
@@ -206,10 +213,6 @@ pub const Parser = struct {
     }
 
     fn triggerStackSequenceBinary(this: *@This(), operator_function: InstructionSequence.OperatorFunction, lhs: *?TokenOperatorFunc, rhs: *?TokenOperatorFunc) !void {
-
-        //std.debug.print("{any}\n", .{rhs.*.?.operator_function});
-        // try rhs.*.?.operator_function.?(&this.instruction_sequence);
-
         if (this.first_token) {
             if (lhs.* != null) {
                 try this.instruction_sequence.pushConstant(&(lhs.*.?.token));
@@ -217,25 +220,12 @@ pub const Parser = struct {
                 if (lhs.*.?.operator_function != null) {
                     try lhs.*.?.operator_function.?(&this.instruction_sequence);
                 }
-
-                // if (lhs.*.?.operator_function) |func| {
-                //     try func(&this.instruction_sequence);
-                // } else {
-                //     //std.debug.print("lhs is null{}\n",.{1});
-                // }
             }
             if (rhs.* != null) {
                 try this.instruction_sequence.pushConstant(&(rhs.*.?.token));
                 if (rhs.*.?.operator_function != null) {
                     try rhs.*.?.operator_function.?(&this.instruction_sequence);
                 }
-
-                // if (lhs.*.?.operator_function) |func| {
-                //     try func(&this.instruction_sequence);
-
-                // } else {
-                //     //std.debug.print("rhs is null{}\n",.{2});
-                // }
             }
             this.first_token = false;
         } else {
@@ -244,9 +234,6 @@ pub const Parser = struct {
                 if (lhs.*.?.operator_function != null) {
                     try lhs.*.?.operator_function.?(&this.instruction_sequence);
                 }
-                // if (lhs.*.?.operator_function) |func| {
-                //     try func(&this.instruction_sequence);
-                // }
             }
 
             if (rhs.* != null) {
@@ -254,9 +241,6 @@ pub const Parser = struct {
                 if (rhs.*.?.operator_function != null) {
                     try rhs.*.?.operator_function.?(&this.instruction_sequence);
                 }
-                // if (lhs.*.?.operator_function) |func| {
-                //     try func(&this.instruction_sequence);
-                // }
             }
         }
 

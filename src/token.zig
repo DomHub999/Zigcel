@@ -59,6 +59,3 @@ pub const Token = struct {
     }
 };
 
-pub const TokenPair = struct{
-    tokens: [2]?Token = [_]?Token{null} ** 2,
-};
