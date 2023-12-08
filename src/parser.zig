@@ -9,11 +9,31 @@ const Error = error{
     expected_operand_is_missing,
     token_type_not_supported,
     no_operand_to_negate_available,
+    max_operator_prefix_exceeded,
+    max_operator_suffix_exceeded,
 };
 
+const N_PRE_SUFF_OPERATORS: usize = 5;
 const TokenOperatorFunc = struct {
-    token: tok.Token,
-    operator_function: ?InstructionSequence.OperatorFunction = null,
+    token: tok.Token = undefined,
+    prefix_operators: [N_PRE_SUFF_OPERATORS]?InstructionSequence.OperatorFunction = [_]?InstructionSequence.OperatorFunction{null} ** N_PRE_SUFF_OPERATORS,
+    suffix_operators: [N_PRE_SUFF_OPERATORS]?InstructionSequence.OperatorFunction = [_]?InstructionSequence.OperatorFunction{null} ** N_PRE_SUFF_OPERATORS,
+    idx_prefix_op: usize = 0,
+    idx_suffix_op: usize = 0,
+    fn pushBackPrefix(this: *@This(), func: InstructionSequence.OperatorFunction) !void {
+        if (this.idx_prefix_op >= N_PRE_SUFF_OPERATORS) {
+            return Error.max_operator_prefix_exceeded;
+        }
+        this.prefix_operators[this.idx_prefix_op] = func;
+        this.idx_prefix_op += 1;
+    }
+    fn pushBackSuffix(this: *@This(), func: InstructionSequence.OperatorFunction) !void {
+        if (this.idx_prefix_op >= N_PRE_SUFF_OPERATORS) {
+            return Error.max_operator_suffix_exceeded;
+        }
+        this.suffix_operators[this.idx_suffix_op] = func;
+        this.idx_suffix_op += 1;
+    }
 };
 
 pub const Parser = struct {
@@ -76,6 +96,11 @@ pub const Parser = struct {
                 result_rhs = try this.stage05();
                 try this.triggerStackSequenceBinary(InstructionSequence.notEqualTo, &result_lhs, &result_rhs);
             }
+        }
+
+
+        if (result_lhs) |*lhs|{
+            try this.triggerStackSequenceUnary(lhs);
         }
     }
 
@@ -175,11 +200,12 @@ pub const Parser = struct {
                 TokenType.constant => {
                     var token_fnc = TokenOperatorFunc{ .token = token_operand.* };
                     this.consumeToken();
-                    if (this.current_token) |possible_unary| {
-                        if (possible_unary.*.token_type == TokenType.percent_sign) {
-                            token_fnc.operator_function = InstructionSequence.percentOf;
-                        }
-                    }
+
+                    // if (this.current_token) |possible_unary| {
+                    //     if (possible_unary.*.token_type == TokenType.percent_sign) {
+                    //         token_fnc.operator_function = InstructionSequence.percentOf;
+                    //     }
+                    // }
                     return token_fnc;
                 },
 
@@ -190,19 +216,29 @@ pub const Parser = struct {
                 },
 
                 TokenType.minus => {
+                    var token_fnc = TokenOperatorFunc{};
+                    try token_fnc.pushBackPrefix(InstructionSequence.negate);
                     this.consumeToken();
-                    if (this.current_token) |operand_negate| {
-                        var token_fnc = TokenOperatorFunc{ .token = operand_negate.* };
-                        token_fnc.operator_function = InstructionSequence.negate;
+
+                    while (this.current_token) |token_unwrapped| {
+                        if (token_unwrapped.token_type == TokenType.minus) {
+                            try token_fnc.pushBackPrefix(InstructionSequence.negate);
+                        } else {
+                            break;
+                        }
                         this.consumeToken();
+                    }
 
-                        
+                    if (this.current_token) |operand_negate| {
+                        token_fnc.token = operand_negate.*;
 
+                        this.consumeToken();
                         return token_fnc;
                     } else {
                         return Error.no_operand_to_negate_available;
                     }
                 },
+
                 else => {
                     return Error.token_type_not_supported;
                 },
@@ -217,29 +253,36 @@ pub const Parser = struct {
             if (lhs.* != null) {
                 try this.instruction_sequence.pushConstant(&(lhs.*.?.token));
 
-                if (lhs.*.?.operator_function != null) {
-                    try lhs.*.?.operator_function.?(&this.instruction_sequence);
+                var idx: usize = 0;
+                while (idx < lhs.*.?.idx_prefix_op) : (idx += 1) {
+                    try lhs.*.?.prefix_operators[idx].?(&this.instruction_sequence);
                 }
             }
             if (rhs.* != null) {
                 try this.instruction_sequence.pushConstant(&(rhs.*.?.token));
-                if (rhs.*.?.operator_function != null) {
-                    try rhs.*.?.operator_function.?(&this.instruction_sequence);
+
+                var idx: usize = 0;
+                while (idx < rhs.*.?.idx_prefix_op) : (idx += 1) {
+                    try rhs.*.?.prefix_operators[idx].?(&this.instruction_sequence);
                 }
             }
             this.first_token = false;
         } else {
             if (lhs.* != null) {
                 try InstructionSequence.pushConstant(&this.instruction_sequence, &(lhs.*.?.token));
-                if (lhs.*.?.operator_function != null) {
-                    try lhs.*.?.operator_function.?(&this.instruction_sequence);
+
+                var idx: usize = 0;
+                while (idx < lhs.*.?.idx_prefix_op) : (idx += 1) {
+                    try lhs.*.?.prefix_operators[idx].?(&this.instruction_sequence);
                 }
             }
 
             if (rhs.* != null) {
                 try InstructionSequence.pushConstant(&this.instruction_sequence, &(rhs.*.?.token));
-                if (rhs.*.?.operator_function != null) {
-                    try rhs.*.?.operator_function.?(&this.instruction_sequence);
+
+                var idx: usize = 0;
+                while (idx < rhs.*.?.idx_prefix_op) : (idx += 1) {
+                    try rhs.*.?.prefix_operators[idx].?(&this.instruction_sequence);
                 }
             }
         }
@@ -248,6 +291,14 @@ pub const Parser = struct {
 
         lhs.* = null;
         rhs.* = null;
+    }
+
+    fn triggerStackSequenceUnary(this: *@This(), lhs: *TokenOperatorFunc) !void {
+        try InstructionSequence.pushConstant(&this.instruction_sequence, &lhs.token);
+        var idx: usize = 0;
+        while (idx < lhs.idx_prefix_op) : (idx += 1) {
+            try lhs.prefix_operators[idx].?(&this.instruction_sequence);
+        }
     }
 };
 
