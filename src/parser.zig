@@ -98,8 +98,8 @@ pub const Parser = struct {
             }
         }
 
-
-        if (result_lhs) |*lhs|{
+        //necessary for a single number, negated numer etc.
+        if (result_lhs) |*lhs| {
             try this.triggerStackSequenceUnary(lhs);
         }
     }
@@ -200,6 +200,14 @@ pub const Parser = struct {
                 TokenType.constant => {
                     var token_fnc = TokenOperatorFunc{ .token = token_operand.* };
                     this.consumeToken();
+                    while (this.current_token) |token_unwrapped| {
+                        if (token_unwrapped.token_type == TokenType.percent_sign) {
+                            try token_fnc.pushBackSuffix(InstructionSequence.percentOf);
+                            this.consumeToken();
+                        } else {
+                            break;
+                        }
+                    }
 
                     // if (this.current_token) |possible_unary| {
                     //     if (possible_unary.*.token_type == TokenType.percent_sign) {
@@ -233,10 +241,20 @@ pub const Parser = struct {
                         token_fnc.token = operand_negate.*;
 
                         this.consumeToken();
-                        return token_fnc;
                     } else {
                         return Error.no_operand_to_negate_available;
                     }
+
+                    while (this.current_token) |token_unwrapped| {
+                        if (token_unwrapped.token_type == TokenType.percent_sign) {
+                            try token_fnc.pushBackSuffix(InstructionSequence.percentOf);
+                            this.consumeToken();
+                        } else {
+                            break;
+                        }
+                    }
+
+                    return token_fnc;
                 },
 
                 else => {
@@ -257,6 +275,10 @@ pub const Parser = struct {
                 while (idx < lhs.*.?.idx_prefix_op) : (idx += 1) {
                     try lhs.*.?.prefix_operators[idx].?(&this.instruction_sequence);
                 }
+                idx = 0;
+                while (idx < lhs.*.?.idx_suffix_op) : (idx += 1) {
+                    try lhs.*.?.suffix_operators[idx].?(&this.instruction_sequence);
+                }
             }
             if (rhs.* != null) {
                 try this.instruction_sequence.pushConstant(&(rhs.*.?.token));
@@ -264,6 +286,10 @@ pub const Parser = struct {
                 var idx: usize = 0;
                 while (idx < rhs.*.?.idx_prefix_op) : (idx += 1) {
                     try rhs.*.?.prefix_operators[idx].?(&this.instruction_sequence);
+                }
+                idx = 0;
+                while (idx < rhs.*.?.idx_suffix_op) : (idx += 1) {
+                    try rhs.*.?.suffix_operators[idx].?(&this.instruction_sequence);
                 }
             }
             this.first_token = false;
@@ -275,6 +301,10 @@ pub const Parser = struct {
                 while (idx < lhs.*.?.idx_prefix_op) : (idx += 1) {
                     try lhs.*.?.prefix_operators[idx].?(&this.instruction_sequence);
                 }
+                idx = 0;
+                while (idx < lhs.*.?.idx_suffix_op) : (idx += 1) {
+                    try lhs.*.?.suffix_operators[idx].?(&this.instruction_sequence);
+                }
             }
 
             if (rhs.* != null) {
@@ -283,6 +313,10 @@ pub const Parser = struct {
                 var idx: usize = 0;
                 while (idx < rhs.*.?.idx_prefix_op) : (idx += 1) {
                     try rhs.*.?.prefix_operators[idx].?(&this.instruction_sequence);
+                }
+                idx = 0;
+                while (idx < rhs.*.?.idx_suffix_op) : (idx += 1) {
+                    try rhs.*.?.suffix_operators[idx].?(&this.instruction_sequence);
                 }
             }
         }

@@ -110,6 +110,8 @@ pub const TokenExtraction = struct {
                 while (this_current < source_size) : (this_current += 1) {
                     current_character = source[this_current];
 
+                    //there are two rules to break a sequence
+                    //the end of sequence rule, which may check for a specific logic...    
                     if (rule.multiple_characters.eoseq_det) |end_of_sequence_det| {
                         const end_of_sequence = end_of_sequence_det(source, current, this_current, source_size);
                         if (end_of_sequence) {
@@ -117,12 +119,14 @@ pub const TokenExtraction = struct {
                         }
                     }
 
+                    //...or if the susequent character is not part of a defined range which belongs to a token type
                     const in_chara_range = characterInCharaRange(rule.multiple_characters.subs_characters, current_character);
                     if (!in_chara_range) {
                         this_current -= 1;
                         break;
                     }
 
+                    //filters out characters which are there for syntactical reasons but do not actually belong to a token
                     if (rule.multiple_characters.chara_trans_det) |chara_transfer_determinator| {
                         const transfer_character = chara_transfer_determinator(source, current, this_current, source_size);
                         if (transfer_character) {
@@ -204,13 +208,24 @@ pub const TokenExtraction = struct {
         tmp_rule_table[' '] = Rule{ .multiple_characters = .{ .subs_characters = &space_r, .token_type_det = space_f } };
         tmp_rule_table['"'] = Rule{ .multiple_characters = .{ .subs_characters = &double_quotes_r, .token_type_det = double_quotes_f, .eoseq_det = double_quotes_e, .chara_trans_det = double_quotes_t } };
 
-        inline for ('0'..'9') |value| {
-            tmp_rule_table[value] = Rule{ .multiple_characters = .{ .subs_characters = &zero_to_nine_r, .token_type_det = zero_to_nine_f } };
+        
+        var num_chara:u8 = '0';
+        while (num_chara <= '9'):(num_chara += 1) {
+            tmp_rule_table[num_chara] = Rule{ .multiple_characters = .{ .subs_characters = &zero_to_nine_r, .token_type_det = zero_to_nine_f } };
         }
 
-        inline for ('A'..'Z') |value| {
-            tmp_rule_table[value] = Rule{ .multiple_characters = .{ .subs_characters = &alphabet_r, .token_type_det = alphabet_f } };
+        // inline for ('0'..'9') |value| {
+        //     tmp_rule_table[value] = Rule{ .multiple_characters = .{ .subs_characters = &zero_to_nine_r, .token_type_det = zero_to_nine_f } };
+        // }
+
+        var capital_letter:u8 = 'A';
+        while (capital_letter <= 'Z'):(capital_letter += 1) {
+            tmp_rule_table[capital_letter] = Rule{ .multiple_characters = .{ .subs_characters = &alphabet_r, .token_type_det = alphabet_f } };
         }
+
+        // inline for ('A'..'Z') |value| {
+        //     tmp_rule_table[value] = Rule{ .multiple_characters = .{ .subs_characters = &alphabet_r, .token_type_det = alphabet_f } };
+        // }
         return tmp_rule_table;
     }
 

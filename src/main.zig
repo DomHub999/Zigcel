@@ -9,10 +9,10 @@ pub fn main() !void {
      //const source = "-10^300%";
     // const source = "10^-300%";
     // const source = "10/-5";
-    // const source = "10/5";
+     //const source = "10/5";
     // const source = "100/50+10*20";
     //const source = "1+-----5";
-    const source = "5+9";
+    const source = "5+-9%";
 
     try lexer.lex(source);
 
@@ -37,6 +37,7 @@ pub fn main() !void {
     //     std.debug.print("{any}\n", .{s.fp});
     //     f();
     // }
+
 
 
 }
