@@ -5,10 +5,10 @@ const MAX_TOKEN_SIZE = tok.MAX_TOKEN_SIZE;
 const TokenType = tok.TokenType;
 
 const Errors = error{
-    character_nod_defined,
-    token_type_cannot_be_determined,
-    source_size_equals_null,
-    unexpected_character,
+    lexer_character_nod_defined,
+    lexer_token_type_cannot_be_determined,
+    lexer_source_size_equals_null,
+    lexer_unexpected_character,
 };
 
 pub const Lexer = struct {
@@ -24,7 +24,7 @@ pub const Lexer = struct {
         var current_position: ?usize = 0;
         const source_size = std.mem.len(source);
         if (source_size == 0) {
-            return Errors.source_size_equals_null;
+            return Errors.lexer_source_size_equals_null;
         }
 
         while (current_position) |pos| {
@@ -107,20 +107,23 @@ pub const TokenExtraction = struct {
             },
 
             RuleType.multiple_characters => {
-                while (this_current < source_size) : (this_current += 1) {
+                while (this_current < source_size) : (this_current += 1) { 
                     current_character = source[this_current];
 
                     //there are two rules to break a sequence
-                    //the end of sequence rule, which may check for a specific logic...    
+                    //the end of sequence rule, which may check for a specific logic...
                     if (rule.multiple_characters.eoseq_det) |end_of_sequence_det| {
-                        const end_of_sequence = end_of_sequence_det(source, current, this_current, source_size);
+                        const end_of_sequence = end_of_sequence_det(source, current, this_current, source_size); 
+                        //after this switch, the this_current cursor must point to the last character of a token (sub)string, this may also be a terminating character like " 
                         if (end_of_sequence) {
                             break;
                         }
                     }
 
-                    //...or if the susequent character is not part of a defined range which belongs to a token type
+                    //...or if the subsequent character is not part of a defined range which belongs to a token type
                     const in_chara_range = characterInCharaRange(rule.multiple_characters.subs_characters, current_character);
+                    //after this switch, the this_current cursor must point to the last character of a token (sub)string
+                    //because whe have advanced one character before realising that the token string has ended, we need to decrement the cursor by one
                     if (!in_chara_range) {
                         this_current -= 1;
                         break;
@@ -136,13 +139,15 @@ pub const TokenExtraction = struct {
                         try token.insertCharacter(current_character);
                     }
                 }
-                const token_type = try rule.multiple_characters.token_type_det(source, current, this_current, source_size);
+
+                const last_character = if (this_current >= source_size) this_current - 1 else this_current;
+                const token_type = try rule.multiple_characters.token_type_det(source, current, last_character, source_size);
 
                 token.insertTokenType(token_type);
             },
 
             RuleType.not_defined => {
-                return Errors.character_nod_defined;
+                return Errors.lexer_character_nod_defined;
             },
         }
 
@@ -201,31 +206,22 @@ pub const TokenExtraction = struct {
         tmp_rule_table['='] = Rule{ .single_character = .{ .token_type = TokenType.equal_sign } };
         tmp_rule_table['&'] = Rule{ .single_character = .{ .token_type = TokenType.ampersand } };
         tmp_rule_table[':'] = Rule{ .single_character = .{ .token_type = TokenType.colon } };
-        tmp_rule_table[':'] = Rule{ .single_character = .{ .token_type = TokenType.comma } };
+        tmp_rule_table[tok.ARGUMENT_DELIMINITER] = Rule{ .single_character = .{ .token_type = TokenType.argument_deliminiter } };
 
         tmp_rule_table['>'] = Rule{ .multiple_characters = .{ .subs_characters = &greater_than_r, .token_type_det = greater_than_f } };
         tmp_rule_table['<'] = Rule{ .multiple_characters = .{ .subs_characters = &smaller_than_r, .token_type_det = smaller_than_f } };
         tmp_rule_table[' '] = Rule{ .multiple_characters = .{ .subs_characters = &space_r, .token_type_det = space_f } };
         tmp_rule_table['"'] = Rule{ .multiple_characters = .{ .subs_characters = &double_quotes_r, .token_type_det = double_quotes_f, .eoseq_det = double_quotes_e, .chara_trans_det = double_quotes_t } };
 
-        
-        var num_chara:u8 = '0';
-        while (num_chara <= '9'):(num_chara += 1) {
+        var num_chara: u8 = '0';
+        inline while (num_chara <= '9') : (num_chara += 1) {
             tmp_rule_table[num_chara] = Rule{ .multiple_characters = .{ .subs_characters = &zero_to_nine_r, .token_type_det = zero_to_nine_f } };
         }
 
-        // inline for ('0'..'9') |value| {
-        //     tmp_rule_table[value] = Rule{ .multiple_characters = .{ .subs_characters = &zero_to_nine_r, .token_type_det = zero_to_nine_f } };
-        // }
-
-        var capital_letter:u8 = 'A';
-        while (capital_letter <= 'Z'):(capital_letter += 1) {
+        var capital_letter: u8 = 'A';
+        inline while (capital_letter <= 'Z') : (capital_letter += 1) {
             tmp_rule_table[capital_letter] = Rule{ .multiple_characters = .{ .subs_characters = &alphabet_r, .token_type_det = alphabet_f } };
         }
-
-        // inline for ('A'..'Z') |value| {
-        //     tmp_rule_table[value] = Rule{ .multiple_characters = .{ .subs_characters = &alphabet_r, .token_type_det = alphabet_f } };
-        // }
         return tmp_rule_table;
     }
 
@@ -269,7 +265,7 @@ pub const TokenExtraction = struct {
         switch (source[current]) {
             '>' => return TokenType.greater_than_sign,
             '=' => return TokenType.greater_equal_to_sign,
-            else => return Errors.unexpected_character,
+            else => return Errors.lexer_unexpected_character,
         }
     }
 
@@ -277,11 +273,13 @@ pub const TokenExtraction = struct {
         _ = source_size;
         _ = start;
 
-        switch (source[current]) {
+        const last_character_index = current - 1;
+
+        switch (source[last_character_index]) {
             '<' => return TokenType.less_than_sign,
             '=' => return TokenType.less_equal_to_sign,
             '>' => return TokenType.not_equal_to_sign,
-            else => return Errors.unexpected_character,
+            else => return Errors.lexer_unexpected_character,
         }
     }
 
@@ -295,13 +293,21 @@ pub const TokenExtraction = struct {
     }
 
     fn alphabet_f(source: [*:0]const u8, start: usize, current: usize, source_size: usize) Errors!TokenType {
-        _ = start;
+
+        const debug = source[current];
+        _ = debug;
 
         switch (source[current]) {
             '0'...'9' => {
                 if ((current + 1) < source_size) {
                     if (source[current + 1] == '(') {
                         return TokenType.formula;
+                    }
+                }
+                var idx: usize = start;
+                while (idx <= current) : (idx += 1) {
+                    if (source[idx] == ':') {
+                        return TokenType.range;
                     }
                 }
                 return TokenType.reference;
@@ -315,10 +321,10 @@ pub const TokenExtraction = struct {
             },
 
             else => {
-                return Errors.token_type_cannot_be_determined;
+                return Errors.lexer_token_type_cannot_be_determined;
             },
         }
-        return Errors.token_type_cannot_be_determined;
+        return Errors.lexer_token_type_cannot_be_determined;
     }
 
     fn double_quotes_f(source: [*:0]const u8, start: usize, current: usize, source_size: usize) Errors!TokenType {
@@ -369,6 +375,7 @@ pub const TokenExtraction = struct {
     };
 
     const alphabet_r = [_]CharaRange{
+        CharaRange{ .single = .{ .low = ':' } },
         CharaRange{ .range = .{ .low = 'A', .high = 'Z' } },
         CharaRange{ .range = .{ .low = '0', .high = '9' } },
     };
@@ -381,6 +388,7 @@ pub const TokenExtraction = struct {
 test "30*20" {
     var lexer = Lexer{};
     lexer.init();
+    defer lexer.drop();
 
     const source = "30*20";
     try lexer.lex(source);
@@ -404,6 +412,7 @@ test "30*20" {
 test "(50 * 40 )-20" {
     var lexer = Lexer{};
     lexer.init();
+    defer lexer.drop();
 
     const source = "(50 * 40 )-20";
     try lexer.lex(source);
@@ -447,6 +456,7 @@ test "(50 * 40 )-20" {
 test "string" {
     var lexer = Lexer{};
     lexer.init();
+    defer lexer.drop();
 
     const source = "\"wurst\"+";
     try lexer.lex(source);
@@ -461,3 +471,43 @@ test "string" {
     var result_2 = std.mem.eql(u8, token_slice, "+"[0..]);
     try std.testing.expect(result_2);
 }
+
+test "reference" {
+    var lexer = Lexer{};
+    lexer.init();
+    defer lexer.drop();
+
+    const source = "A1,BB23,D4:EF567";
+    try lexer.lex(source);
+
+    var token = lexer.getNext().?;
+    var token_slice = Lexer.extractToken(&token.token);
+    var result = std.mem.eql(u8, token_slice, "A1"[0..]);
+    try std.testing.expect(result);
+    try std.testing.expect(token.token_type == TokenType.reference);
+
+    token = lexer.getNext().?;
+    token_slice = Lexer.extractToken(&token.token);
+    result = std.mem.eql(u8, token_slice, ","[0..]);
+    try std.testing.expect(result);
+    try std.testing.expect(token.token_type == TokenType.argument_deliminiter);
+
+    token = lexer.getNext().?;
+    token_slice = Lexer.extractToken(&token.token);
+    result = std.mem.eql(u8, token_slice, "BB23"[0..]);
+    try std.testing.expect(result);
+    try std.testing.expect(token.token_type == TokenType.reference);
+
+    token = lexer.getNext().?;
+    token_slice = Lexer.extractToken(&token.token);
+    result = std.mem.eql(u8, token_slice, ","[0..]);
+    try std.testing.expect(result);
+    try std.testing.expect(token.token_type == TokenType.argument_deliminiter);
+
+    token = lexer.getNext().?;
+    token_slice = Lexer.extractToken(&token.token);
+    result = std.mem.eql(u8, token_slice, "D4:EF567"[0..]);
+    try std.testing.expect(result);
+    try std.testing.expect(token.token_type == TokenType.range);
+}
+

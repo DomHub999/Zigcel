@@ -6,11 +6,11 @@ const Token = tok.Token;
 const TokenPair = tok.TokenPair;
 
 const Error = error{
-    expected_operand_is_missing,
-    token_type_not_supported,
-    no_operand_to_negate_available,
-    max_operator_prefix_exceeded,
-    max_operator_suffix_exceeded,
+    parser_expected_operand_is_missing,
+    parser_token_type_not_supported,
+    parser_no_operand_to_negate_available,
+    parser_max_operator_prefix_exceeded,
+    parser_max_operator_suffix_exceeded,
 };
 
 const N_PRE_SUFF_OPERATORS: usize = 5;
@@ -22,14 +22,14 @@ const TokenOperatorFunc = struct {
     idx_suffix_op: usize = 0,
     fn pushBackPrefix(this: *@This(), func: InstructionSequence.OperatorFunction) !void {
         if (this.idx_prefix_op >= N_PRE_SUFF_OPERATORS) {
-            return Error.max_operator_prefix_exceeded;
+            return Error.parser_max_operator_prefix_exceeded;
         }
         this.prefix_operators[this.idx_prefix_op] = func;
         this.idx_prefix_op += 1;
     }
     fn pushBackSuffix(this: *@This(), func: InstructionSequence.OperatorFunction) !void {
         if (this.idx_prefix_op >= N_PRE_SUFF_OPERATORS) {
-            return Error.max_operator_suffix_exceeded;
+            return Error.parser_max_operator_suffix_exceeded;
         }
         this.suffix_operators[this.idx_suffix_op] = func;
         this.idx_suffix_op += 1;
@@ -182,13 +182,18 @@ pub const Parser = struct {
         return result_lhs;
     }
 
-    //reference operators :,' ',,
+    //reference operators :,' ',, (colon, single space)
     fn stage01(this: *@This()) !?TokenOperatorFunc {
         var result_lhs = try this.stage00();
         if (this.current_token) |token_operator| {
-            _ = token_operator;
             var result_rhs: ?TokenOperatorFunc = null;
-            _ = result_rhs;
+
+            while (token_operator.*.token_type == TokenType.colon) {
+                this.consumeToken();
+                result_rhs = try this.stage00();
+                // try this.triggerStackSequenceBinary(InstructionSequence.toThePowerOf, &result_lhs, &result_rhs);
+                return null;
+            }
         }
         return result_lhs;
     }
@@ -200,20 +205,9 @@ pub const Parser = struct {
                 TokenType.constant => {
                     var token_fnc = TokenOperatorFunc{ .token = token_operand.* };
                     this.consumeToken();
-                    while (this.current_token) |token_unwrapped| {
-                        if (token_unwrapped.token_type == TokenType.percent_sign) {
-                            try token_fnc.pushBackSuffix(InstructionSequence.percentOf);
-                            this.consumeToken();
-                        } else {
-                            break;
-                        }
-                    }
 
-                    // if (this.current_token) |possible_unary| {
-                    //     if (possible_unary.*.token_type == TokenType.percent_sign) {
-                    //         token_fnc.operator_function = InstructionSequence.percentOf;
-                    //     }
-                    // }
+                    try this.dealWithPercentSign(&token_fnc);
+
                     return token_fnc;
                 },
 
@@ -242,27 +236,31 @@ pub const Parser = struct {
 
                         this.consumeToken();
                     } else {
-                        return Error.no_operand_to_negate_available;
+                        return Error.parser_no_operand_to_negate_available;
                     }
 
-                    while (this.current_token) |token_unwrapped| {
-                        if (token_unwrapped.token_type == TokenType.percent_sign) {
-                            try token_fnc.pushBackSuffix(InstructionSequence.percentOf);
-                            this.consumeToken();
-                        } else {
-                            break;
-                        }
-                    }
+                    try this.dealWithPercentSign(&token_fnc);
 
                     return token_fnc;
                 },
 
                 else => {
-                    return Error.token_type_not_supported;
+                    return Error.parser_token_type_not_supported;
                 },
             }
         } else {
-            return Error.expected_operand_is_missing;
+            return Error.parser_expected_operand_is_missing;
+        }
+    }
+
+    fn dealWithPercentSign(this: *@This(), token_fnc: *TokenOperatorFunc) !void {
+        while (this.current_token) |token_unwrapped| {
+            if (token_unwrapped.token_type == TokenType.percent_sign) {
+                try token_fnc.pushBackSuffix(InstructionSequence.percentOf);
+                this.consumeToken();
+            } else {
+                break;
+            }
         }
     }
 
@@ -351,13 +349,15 @@ const Instructions = enum {
 
     push,
 
-    concat_stringss,
+    concat_strings,
 
     to_the_power_of,
 
     percent_of,
 
     negate,
+
+    range,
 };
 
 pub const InstructionType = enum {
@@ -410,7 +410,7 @@ const InstructionSequence = struct {
     }
 
     fn concatenate(this: *@This()) std.mem.Allocator.Error!void {
-        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.concat_stringss });
+        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.concat_strings });
     }
 
     fn add(this: *@This()) std.mem.Allocator.Error!void {
@@ -481,7 +481,7 @@ test "strings" {
     var solution = [_]Instruction{
         Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.string } } },
         Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.string } } },
-        Instruction{ .single_instruction = Instructions.concat_stringss },
+        Instruction{ .single_instruction = Instructions.concat_strings },
     };
 
     @memcpy(solution[0].stack_operation.token.token[0..3], "abc");
@@ -504,7 +504,7 @@ test "negate/percent/power" {
     var solution = [_]Instruction{
         Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.string } } },
         Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.string } } },
-        Instruction{ .single_instruction = Instructions.concat_stringss },
+        Instruction{ .single_instruction = Instructions.concat_strings },
     };
 
     @memcpy(solution[0].stack_operation.token.token[0..3], "abc");

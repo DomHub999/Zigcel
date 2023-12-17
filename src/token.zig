@@ -4,6 +4,8 @@ const Errors = error{
 
 pub const MAX_TOKEN_SIZE: usize = 20;
 
+pub const ARGUMENT_DELIMINITER:u8 = ',';
+
 pub const TokenType = enum {
     plus,
     minus,
@@ -23,14 +25,15 @@ pub const TokenType = enum {
     not_equal_to_sign,
 
     ampersand,
-    colon,
-    comma,
+    colon, //may be deleted if only present in ranges
+    argument_deliminiter,
     space,
     pound,
     at,
 
     formula,
     reference,
+    range,
 
     string,
 };

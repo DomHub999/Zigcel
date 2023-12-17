@@ -12,7 +12,10 @@ pub fn main() !void {
      //const source = "10/5";
     // const source = "100/50+10*20";
     //const source = "1+-----5";
-    const source = "5+-9%";
+    //const source = "5+-9%";
+    //const source = "=91%/-8";
+    const source = "A1:A2";
+
 
     try lexer.lex(source);
 
