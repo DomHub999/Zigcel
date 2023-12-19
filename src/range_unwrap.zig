@@ -8,14 +8,14 @@ const ReferenceList = std.ArrayList([10]u8);
 
 const RangeUnwrapper = struct {
     const DelimPositions = struct {
-        left_col_idx: usize,
-        left_col_len: usize,
-        left_row_idx: usize,
-        left_row_len: usize,
-        right_col_len: usize,
-        right_col_idx: usize,
-        right_row_idx: usize,
-        right_row_len: usize,
+        left_col_start: usize,
+        left_col_end: usize,
+        left_row_start: usize,
+        left_row_end: usize,
+        right_col_start: usize,
+        right_col_end: usize,
+        right_row_start: usize,
+        right_row_end: usize,
     };
 
     const IndividualParts = struct {
@@ -52,32 +52,33 @@ const RangeUnwrapper = struct {
 
     fn calcDelimiters(range: []const u8) !DelimPositions {
         var idx_left: usize = 0;
-
         while (range[idx_left] >= 'A' and range[idx_left] <= 'Z') : (idx_left += 1) {}
 
         const range_delim_idx = std.mem.indexOf(u8, range, ":"[0..]) orelse return Error.rangeunwrapper_range_colon_divisor_na;
 
         var idx_right: usize = 0;
-
         while (range[(range_delim_idx + 1)..][idx_right] >= 'A' and range[(range_delim_idx + 1)..][idx_right] <= 'Z') : (idx_right += 1) {}
 
-        const left_col_len: usize = idx_left;
-        const left_row_idx: usize = idx_left;
-        const left_row_len: usize = range_delim_idx - left_col_len;
-        const right_col_idx: usize = range_delim_idx + 1;
-        const right_col_len: usize = idx_right;
-        const right_row_idx: usize = idx_right + range_delim_idx + 1;
-        const right_row_len: usize = range.len - right_row_idx;
+        const left_col_start: usize = 0;
+        const left_col_end: usize = idx_left - 1;
+        const left_row_start: usize = idx_left;
+        const left_row_end: usize = range_delim_idx - 1;
+        const right_col_start: usize = range_delim_idx + 1;
+        const right_col_end: usize = range_delim_idx + idx_right;
+        const right_row_start: usize = range_delim_idx + idx_right + 1;
+        const right_row_end: usize = range.len - 1;
+
+        //ABC12345:DEFG678
 
         const delimiters = DelimPositions{
-            .left_col_idx = 0,
-            .left_col_len = left_col_len,
-            .left_row_idx = left_row_idx,
-            .left_row_len = left_row_len,
-            .right_col_idx = right_col_idx,
-            .right_col_len = right_col_len,
-            .right_row_idx = right_row_idx,
-            .right_row_len = right_row_len,
+            .left_col_start = left_col_start,
+            .left_col_end = left_col_end,
+            .left_row_start = left_row_start,
+            .left_row_end = left_row_end,
+            .right_col_start = right_col_start,
+            .right_col_end = right_col_end,
+            .right_row_start = right_row_start,
+            .right_row_end = right_row_end,
         };
 
         return delimiters;
@@ -86,7 +87,7 @@ const RangeUnwrapper = struct {
     fn extractLeftCol(range: []const u8, range_delimiters: *const DelimPositions) [3]u8 {
         var column = [_]u8{0} ** 3;
 
-        for (range[range_delimiters.left_col_idx..range_delimiters.left_col_len], 0..) |value, i| {
+        for (range[range_delimiters.left_col_idx .. range_delimiters.left_col_end + 1], 0..) |value, i| {
             column[i] = value;
         }
 
@@ -94,38 +95,37 @@ const RangeUnwrapper = struct {
     }
 
     fn extractLeftRow(range: []const u8, range_delimiters: *const DelimPositions) !usize {
-        const debug = range[range_delimiters.left_row_idx..range_delimiters.left_row_len];
-        _ = debug;
-    
-        return try std.fmt.parseInt(usize, range[range_delimiters.left_row_idx..range_delimiters.left_row_len], 0);
-        
-    }
-
-    fn extractRightRow(range: []const u8, range_delimiters: *const DelimPositions) usize {
-        return try std.fmt.parseInt(usize, range[range_delimiters.right_row_idx..range_delimiters.right_row_len], 0);
+        return try std.fmt.parseInt(usize, range[range_delimiters.left_row_start..range_delimiters.left_row_end + 1], 0);
     }
 
     fn extractRightCol(range: []const u8, range_delimiters: *const DelimPositions) [3]u8 {
         var column = [_]u8{0} ** 3;
 
-        for (range[range_delimiters.right_col_idx..range_delimiters.right_col_len], 0..) |value, i| {
+        for (range[range_delimiters.right_col_start..range_delimiters.right_col_end + 1], 0..) |value, i| {
             column[i] = value;
         }
 
         return column;
     }
+
+    fn extractRightRow(range: []const u8, range_delimiters: *const DelimPositions) !usize {
+        return try std.fmt.parseInt(usize, range[range_delimiters.right_row_start..range_delimiters.right_row_end + 1], 0);
+    }
 };
 
 test "delimiter calculation" {
     const result = try RangeUnwrapper.calcDelimiters("ABC12345:DEFG678"[0..]);
-    try std.testing.expect(result.left_col_idx == 0);
-    try std.testing.expect(result.left_col_len == 3);
-    try std.testing.expect(result.left_row_idx == 3);
-    try std.testing.expect(result.left_row_len == 5);
-    try std.testing.expect(result.right_col_idx == 9);
-    try std.testing.expect(result.right_col_len == 4);
-    try std.testing.expect(result.right_row_idx == 13);
-    try std.testing.expect(result.right_row_len == 3);
+    try std.testing.expect(result.left_col_start == 0);
+    try std.testing.expect(result.left_col_end == 2);
+
+    try std.testing.expect(result.left_row_start == 3);
+    try std.testing.expect(result.left_row_end == 7);
+
+    try std.testing.expect(result.right_col_start == 9);
+    try std.testing.expect(result.right_col_end == 12);
+
+    try std.testing.expect(result.right_row_start == 13);
+    try std.testing.expect(result.right_row_end == 15);
 }
 
 test "extract left col" {
@@ -149,14 +149,13 @@ test "extract right col" {
     const delimiter = try RangeUnwrapper.calcDelimiters(range);
     const result = RangeUnwrapper.extractRightCol(range, &delimiter);
     try std.testing.expect(result[0] == 'D');
-    try std.testing.expect(result[0] == 'E');
-    try std.testing.expect(result[0] == 'F');
-    
+    try std.testing.expect(result[1] == 'E');
+    try std.testing.expect(result[2] == 'F');
 }
 
 test "extract right row" {
     const range = "ABC12345:DEFG678"[0..];
     const delimiter = try RangeUnwrapper.calcDelimiters(range);
-    const result = try RangeUnwrapper.extractLeftRow(range, &delimiter);
+    const result = try RangeUnwrapper.extractRightRow(range, &delimiter);
     try std.testing.expect(result == 678);
 }
