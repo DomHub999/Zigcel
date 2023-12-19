@@ -34,21 +34,15 @@ pub fn main() !void {
     //             std.debug.print("{s} {s}\n", .{@tagName(value.stack_operation.instruction), lex.Lexer.extractToken(&value.stack_operation.token.token)});
     //         },
     //     }
-    // }
 
-    var unwrapper = RangeUnwrapper{};
 
-    var result = unwrapper.unwrapRange("abc"[0..]);
-    _ = result;
-}
+    //DEF
+    const slice = "ABCDEFG"[3..6];
 
-const RangeUnwrapper = struct {
-    pub fn unwrapRange(this: *@This(), range: []const u8) std.ArrayList([10]u8) {
-        _ = this;
-        _ = range;
+    for (slice) |value| {
+        
+        std.debug.print("{c}", .{value});
+        }
 
-        var reference_list = std.ArrayList([10]u8).init(std.heap.page_allocator);
-
-        return reference_list;
     }
-};
+
