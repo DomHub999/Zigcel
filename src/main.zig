@@ -35,14 +35,19 @@ pub fn main() !void {
     //         },
     //     }
 
+        // const result = returnStr();
 
-    //DEF
-    const slice = "ABCDEFG"[3..6];
+        // std.debug.print("{}\n", .{result.u});
+         std.debug.print("{}\n", .{numFromCharacter('A')});
 
-    for (slice) |value| {
-        
-        std.debug.print("{c}", .{value});
-        }
 
     }
 
+    fn returnStr() struct{ u:usize,a: u8}{
+        return .{.u = 100, .a = 4};
+    }
+
+
+    fn numFromCharacter(chara:u8) usize {
+            return chara - '@';
+        }

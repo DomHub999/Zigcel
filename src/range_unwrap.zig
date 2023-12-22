@@ -1,4 +1,5 @@
 const std = @import("std");
+const pow = std.math.pow;
 
 const Error = error{
     rangeunwrapper_range_colon_divisor_na,
@@ -6,115 +7,157 @@ const Error = error{
 
 const ReferenceList = std.ArrayList([10]u8);
 
-const RangeUnwrapper = struct {
-    const DelimPositions = struct {
-        left_col_start: usize,
-        left_col_end: usize,
-        left_row_start: usize,
-        left_row_end: usize,
-        right_col_start: usize,
-        right_col_end: usize,
-        right_row_start: usize,
-        right_row_end: usize,
-    };
-
-    const IndividualParts = struct {
-        left_col: [3]u8,
-        left_row: usize,
-        right_col: [3]u8,
-        right_row: usize,
-    };
-
-    pub fn unwrapRange(this: *@This(), range: []const u8) !std.ArrayList([10]u8) {
-        _ = this;
-
-        var reference_list = ReferenceList.init(std.heap.page_allocator);
-
-        const range_delimiters = RangeUnwrapper.calcDelimiters(range);
-
-        const indiv_parts = IndividualParts{
-            .left_col = RangeUnwrapper.extractLeftCol(range, &range_delimiters),
-            .left_row = RangeUnwrapper.extractLeftRow(range, &range_delimiters),
-            .right_col = RangeUnwrapper.extractRightCol(range, &range_delimiters),
-            .right_row = RangeUnwrapper.extractRightRow(range, &range_delimiters),
-        };
-
-        _ = indiv_parts;
-
-        return reference_list;
-    }
-
-    fn rangeToReferences(indiv_parts: *IndividualParts, reference_list: *ReferenceList) void {
-        _ = reference_list;
-
-        _ = indiv_parts;
-    }
-
-    fn calcDelimiters(range: []const u8) !DelimPositions {
-        var idx_left: usize = 0;
-        while (range[idx_left] >= 'A' and range[idx_left] <= 'Z') : (idx_left += 1) {}
-
-        const range_delim_idx = std.mem.indexOf(u8, range, ":"[0..]) orelse return Error.rangeunwrapper_range_colon_divisor_na;
-
-        var idx_right: usize = 0;
-        while (range[(range_delim_idx + 1)..][idx_right] >= 'A' and range[(range_delim_idx + 1)..][idx_right] <= 'Z') : (idx_right += 1) {}
-
-        const left_col_start: usize = 0;
-        const left_col_end: usize = idx_left - 1;
-        const left_row_start: usize = idx_left;
-        const left_row_end: usize = range_delim_idx - 1;
-        const right_col_start: usize = range_delim_idx + 1;
-        const right_col_end: usize = range_delim_idx + idx_right;
-        const right_row_start: usize = range_delim_idx + idx_right + 1;
-        const right_row_end: usize = range.len - 1;
-
-        //ABC12345:DEFG678
-
-        const delimiters = DelimPositions{
-            .left_col_start = left_col_start,
-            .left_col_end = left_col_end,
-            .left_row_start = left_row_start,
-            .left_row_end = left_row_end,
-            .right_col_start = right_col_start,
-            .right_col_end = right_col_end,
-            .right_row_start = right_row_start,
-            .right_row_end = right_row_end,
-        };
-
-        return delimiters;
-    }
-
-    fn extractLeftCol(range: []const u8, range_delimiters: *const DelimPositions) [3]u8 {
-        var column = [_]u8{0} ** 3;
-
-        for (range[range_delimiters.left_col_idx .. range_delimiters.left_col_end + 1], 0..) |value, i| {
-            column[i] = value;
-        }
-
-        return column;
-    }
-
-    fn extractLeftRow(range: []const u8, range_delimiters: *const DelimPositions) !usize {
-        return try std.fmt.parseInt(usize, range[range_delimiters.left_row_start..range_delimiters.left_row_end + 1], 0);
-    }
-
-    fn extractRightCol(range: []const u8, range_delimiters: *const DelimPositions) [3]u8 {
-        var column = [_]u8{0} ** 3;
-
-        for (range[range_delimiters.right_col_start..range_delimiters.right_col_end + 1], 0..) |value, i| {
-            column[i] = value;
-        }
-
-        return column;
-    }
-
-    fn extractRightRow(range: []const u8, range_delimiters: *const DelimPositions) !usize {
-        return try std.fmt.parseInt(usize, range[range_delimiters.right_row_start..range_delimiters.right_row_end + 1], 0);
-    }
+const DelimPositions = struct {
+    left_col_start: usize,
+    left_col_end: usize,
+    left_row_start: usize,
+    left_row_end: usize,
+    right_col_start: usize,
+    right_col_end: usize,
+    right_row_start: usize,
+    right_row_end: usize,
 };
 
+const IndividualParts = struct {
+    left_col: [3]u8,
+    lef_col_len: usize,
+    left_row: usize,
+    right_col_len: usize,
+    right_col: [3]u8,
+    right_row: usize,
+};
+
+pub fn unwrapRange(this: *@This(), range: []const u8) !std.ArrayList([10]u8) {
+    _ = this;
+
+    var reference_list = ReferenceList.init(std.heap.page_allocator);
+
+    const range_delimiters = calcDelimiters(range);
+
+    const left_col = extractLeftCol(range, &range_delimiters);
+    const right_col = extractRightCol(range, &range_delimiters);
+
+    const indiv_parts = IndividualParts{
+        .left_col = left_col.column,
+        .lef_col_len = left_col.column_len,
+        .left_row = extractLeftRow(range, &range_delimiters),
+        .right_col = right_col.column,
+        .right_col_len = right_col.column_len,
+        .right_row = extractRightRow(range, &range_delimiters),
+    };
+
+    _ = indiv_parts;
+
+    return reference_list;
+}
+
+fn rangeToReferences(indiv_parts: *IndividualParts, reference_list: *ReferenceList) void {
+    _ = reference_list;
+
+    _ = indiv_parts;
+}
+
+fn calcDelimiters(range: []const u8) !DelimPositions {
+    var idx_left: usize = 0;
+    while (range[idx_left] >= 'A' and range[idx_left] <= 'Z') : (idx_left += 1) {}
+
+    const range_delim_idx = std.mem.indexOf(u8, range, ":"[0..]) orelse return Error.rangeunwrapper_range_colon_divisor_na;
+
+    var idx_right: usize = 0;
+    while (range[(range_delim_idx + 1)..][idx_right] >= 'A' and range[(range_delim_idx + 1)..][idx_right] <= 'Z') : (idx_right += 1) {}
+
+    const delimiters = DelimPositions{
+        .left_col_start = 0,
+        .left_col_end = idx_left - 1,
+        .left_row_start = idx_left,
+        .left_row_end = range_delim_idx - 1,
+        .right_col_start = range_delim_idx + 1,
+        .right_col_end = range_delim_idx + idx_right,
+        .right_row_start = range_delim_idx + idx_right + 1,
+        .right_row_end = range.len - 1,
+    };
+
+    return delimiters;
+}
+
+fn extractLeftCol(range: []const u8, range_delimiters: *const DelimPositions) struct { column: [3]u8, column_len: usize } {
+    var column = [_]u8{0} ** 3;
+    var column_len: usize = 0;
+
+    for (range[range_delimiters.left_col_start .. range_delimiters.left_col_end + 1], 0..) |value, i| {
+        column[i] = value;
+        column_len = i;
+    }
+
+    return .{ .column = column, .column_len = column_len + 1 };
+}
+
+fn extractLeftRow(range: []const u8, range_delimiters: *const DelimPositions) !usize {
+    return try std.fmt.parseInt(usize, range[range_delimiters.left_row_start .. range_delimiters.left_row_end + 1], 0);
+}
+
+fn extractRightCol(range: []const u8, range_delimiters: *const DelimPositions) struct { column: [3]u8, column_len: usize } {
+    var column = [_]u8{0} ** 3;
+    var column_len: usize = 0;
+
+    for (range[range_delimiters.right_col_start .. range_delimiters.right_col_end + 1], 0..) |value, i| {
+        column[i] = value;
+        column_len = i;
+    }
+
+    return .{ .column = column, .column_len = column_len + 1 };
+}
+
+fn extractRightRow(range: []const u8, range_delimiters: *const DelimPositions) !usize {
+    return try std.fmt.parseInt(usize, range[range_delimiters.right_row_start .. range_delimiters.right_row_end + 1], 0);
+}
+
+fn upperCharacterToNum(chara: u8) usize {
+    return chara - '@';
+}
+
+const alphabet_num_chara: usize = 26;
+fn numberFromCol(col: *const [3]u8, len: usize) usize {
+    var this_length = len;
+    var result: usize = 0;
+    var iteration: usize = 0;
+
+    while (this_length > 0) : (this_length -= 1) {
+        const numFromChara = upperCharacterToNum(col[this_length - 1]);
+        const multiplicator = pow(usize, alphabet_num_chara, iteration);
+        result += numFromChara * multiplicator;
+        iteration += 1;
+    }
+    return result;
+}
+
+fn numToUpperChara(num: usize) u8 {
+    const num_as_u8:u8 = @intCast(num);
+    return num_as_u8 + '@';
+}
+
+fn colFromNumber(num: usize) [3]u8 {
+    var iteration: usize = 3;
+    var result = [_]u8{0} ** 3;
+    var idx: usize = 0;
+    var remainder: usize = num;
+
+    while (iteration > 0) : (iteration -= 1) {
+        const divisor = pow(usize, alphabet_num_chara, iteration - 1);
+        const chara_num = remainder / divisor;
+
+        if (chara_num > 0) {
+            result[idx] = numToUpperChara(chara_num);
+            remainder -= chara_num * divisor;
+        }
+        idx += 1;
+    }
+
+    return result;
+}
+
 test "delimiter calculation" {
-    const result = try RangeUnwrapper.calcDelimiters("ABC12345:DEFG678"[0..]);
+    const result = try calcDelimiters("ABC12345:DEFG678"[0..]);
     try std.testing.expect(result.left_col_start == 0);
     try std.testing.expect(result.left_col_end == 2);
 
@@ -130,32 +173,47 @@ test "delimiter calculation" {
 
 test "extract left col" {
     const range = "ABC12345:DEF678"[0..];
-    const delimiter = try RangeUnwrapper.calcDelimiters(range);
-    const result = RangeUnwrapper.extractLeftCol(range, &delimiter);
-    try std.testing.expect(result[0] == 'A');
-    try std.testing.expect(result[1] == 'B');
-    try std.testing.expect(result[2] == 'C');
+    const delimiter = try calcDelimiters(range);
+    const result = extractLeftCol(range, &delimiter);
+    try std.testing.expect(result.column[0] == 'A');
+    try std.testing.expect(result.column[1] == 'B');
+    try std.testing.expect(result.column[2] == 'C');
+    try std.testing.expect(result.column_len == 3);
 }
 
 test "extract left row" {
     const range = "ABC12345:DEF678"[0..];
-    const delimiter = try RangeUnwrapper.calcDelimiters(range);
-    const result = try RangeUnwrapper.extractLeftRow(range, &delimiter);
+    const delimiter = try calcDelimiters(range);
+    const result = try extractLeftRow(range, &delimiter);
     try std.testing.expect(result == 12345);
 }
 
 test "extract right col" {
     const range = "ABC12345:DEF678"[0..];
-    const delimiter = try RangeUnwrapper.calcDelimiters(range);
-    const result = RangeUnwrapper.extractRightCol(range, &delimiter);
-    try std.testing.expect(result[0] == 'D');
-    try std.testing.expect(result[1] == 'E');
-    try std.testing.expect(result[2] == 'F');
+    const delimiter = try calcDelimiters(range);
+    const result = extractRightCol(range, &delimiter);
+    try std.testing.expect(result.column[0] == 'D');
+    try std.testing.expect(result.column[1] == 'E');
+    try std.testing.expect(result.column[2] == 'F');
+    try std.testing.expect(result.column_len == 3);
 }
 
 test "extract right row" {
     const range = "ABC12345:DEFG678"[0..];
-    const delimiter = try RangeUnwrapper.calcDelimiters(range);
-    const result = try RangeUnwrapper.extractRightRow(range, &delimiter);
+    const delimiter = try calcDelimiters(range);
+    const result = try extractRightRow(range, &delimiter);
     try std.testing.expect(result == 678);
+}
+
+test "col to num"{
+    const col = [3]u8{'X', 'F', 'D'};
+    const result = numberFromCol(&col, 3);
+    try std.testing.expect(result == 16384);
+}
+
+test "num to chara"{
+    const result = colFromNumber(16384);
+    try std.testing.expect(result[0] == 'X');
+    try std.testing.expect(result[1] == 'F');
+    try std.testing.expect(result[2] == 'D');
 }
