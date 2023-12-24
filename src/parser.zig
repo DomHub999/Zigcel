@@ -20,6 +20,8 @@ const TokenOperatorFunc = struct {
     suffix_operators: [N_PRE_SUFF_OPERATORS]?InstructionSequence.OperatorFunction = [_]?InstructionSequence.OperatorFunction{null} ** N_PRE_SUFF_OPERATORS,
     idx_prefix_op: usize = 0,
     idx_suffix_op: usize = 0,
+
+
     fn pushBackPrefix(this: *@This(), func: InstructionSequence.OperatorFunction) !void {
         if (this.idx_prefix_op >= N_PRE_SUFF_OPERATORS) {
             return Error.parser_max_operator_prefix_exceeded;
@@ -182,13 +184,13 @@ pub const Parser = struct {
         return result_lhs;
     }
 
-    //reference operators :,' ',, (colon, single space)
+    //reference operators ' ' (single space)
     fn stage01(this: *@This()) !?TokenOperatorFunc {
         const result_lhs = try this.stage00();
         if (this.current_token) |token_operator| {
             var result_rhs: ?TokenOperatorFunc = null;
 
-            while (token_operator.*.token_type == TokenType.colon) {
+            while (token_operator.*.token_type == TokenType.space) {
                 this.consumeToken();
                 result_rhs = try this.stage00();
                 // try this.triggerStackSequenceBinary(InstructionSequence.toThePowerOf, &result_lhs, &result_rhs);
@@ -198,25 +200,27 @@ pub const Parser = struct {
         return result_lhs;
     }
 
-    //constant, sub section, formula, string
+    //constant, string, negation, opening bracket, formula, reference, range
     fn stage00(this: *@This()) !?TokenOperatorFunc {
         if (this.current_token) |token_operand| {
             switch (token_operand.token_type) {
+
+                //CONSTANT
                 TokenType.constant => {
                     var token_fnc = TokenOperatorFunc{ .token = token_operand.* };
                     this.consumeToken();
-
                     try this.dealWithPercentSign(&token_fnc);
-
                     return token_fnc;
                 },
 
+                //STRING
                 TokenType.string => {
                     const token_fnc = TokenOperatorFunc{ .token = token_operand.* };
                     this.consumeToken();
                     return token_fnc;
                 },
 
+                //NEGATION
                 TokenType.minus => {
                     var token_fnc = TokenOperatorFunc{};
                     try token_fnc.pushBackPrefix(InstructionSequence.negate);
@@ -243,6 +247,25 @@ pub const Parser = struct {
 
                     return token_fnc;
                 },
+
+                //OPENING BRACKET
+                TokenType.bracket_open => {},
+
+                //FORMULA
+                TokenType.formula => {
+                    this.consumeToken(); //formula
+                    this.consumeToken(); //opening bracket    
+
+                },
+
+                //REFERENCE
+                TokenType.reference => {
+
+
+                },
+
+                //RANGE
+                TokenType.range => {},
 
                 else => {
                     return Error.parser_token_type_not_supported;

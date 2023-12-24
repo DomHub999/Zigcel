@@ -107,14 +107,14 @@ pub const TokenExtraction = struct {
             },
 
             RuleType.multiple_characters => {
-                while (this_current < source_size) : (this_current += 1) { 
+                while (this_current < source_size) : (this_current += 1) {
                     current_character = source[this_current];
 
                     //there are two rules to break a sequence
                     //the end of sequence rule, which may check for a specific logic...
                     if (rule.multiple_characters.eoseq_det) |end_of_sequence_det| {
-                        const end_of_sequence = end_of_sequence_det(source, current, this_current, source_size); 
-                        //after this switch, the this_current cursor must point to the last character of a token (sub)string, this may also be a terminating character like " 
+                        const end_of_sequence = end_of_sequence_det(source, current, this_current, source_size);
+                        //after this switch, the this_current cursor must point to the last character of a token (sub)string, this may also be a terminating character like "
                         if (end_of_sequence) {
                             break;
                         }
@@ -293,7 +293,6 @@ pub const TokenExtraction = struct {
     }
 
     fn alphabet_f(source: [*:0]const u8, start: usize, current: usize, source_size: usize) Errors!TokenType {
-
         const debug = source[current];
         _ = debug;
 
@@ -512,3 +511,42 @@ test "reference" {
     try std.testing.expect(token.token_type == TokenType.range);
 }
 
+test "formula" {
+    var lexer = Lexer{};
+    lexer.init();
+    defer lexer.drop();
+
+    const source = "SUM(A1,B2)";
+    try lexer.lex(source);
+
+    var token = lexer.getNext().?;
+    var token_slice = Lexer.extractToken(&token.token);
+    try std.testing.expect(std.mem.eql(u8, token_slice, "SUM"[0..]));
+    try std.testing.expect(token.token_type == TokenType.formula);
+
+    token = lexer.getNext().?;
+    token_slice = Lexer.extractToken(&token.token);
+    try std.testing.expect(std.mem.eql(u8, token_slice, "("[0..]));
+    try std.testing.expect(token.token_type == TokenType.bracket_open);
+
+    token = lexer.getNext().?;
+    token_slice = Lexer.extractToken(&token.token);
+    try std.testing.expect(std.mem.eql(u8, token_slice, "A1"[0..]));
+    try std.testing.expect(token.token_type == TokenType.reference);
+
+    token = lexer.getNext().?;
+    token_slice = Lexer.extractToken(&token.token);
+    try std.testing.expect(std.mem.eql(u8, token_slice, ","[0..]));
+    try std.testing.expect(token.token_type == TokenType.argument_deliminiter);
+
+    token = lexer.getNext().?;
+    token_slice = Lexer.extractToken(&token.token);
+    try std.testing.expect(std.mem.eql(u8, token_slice, "B2"[0..]));
+    try std.testing.expect(token.token_type == TokenType.reference);
+
+    token = lexer.getNext().?;
+    token_slice = Lexer.extractToken(&token.token);
+    try std.testing.expect(std.mem.eql(u8, token_slice, ")"[0..]));
+    try std.testing.expect(token.token_type == TokenType.bracket_close);
+
+}
