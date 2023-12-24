@@ -3,6 +3,7 @@ const pow = std.math.pow;
 
 const Error = error{
     rangeunwrapper_range_colon_divisor_na,
+    rangeunwrapper_no_row_part_in_range,
 };
 
 const ReferenceList = std.ArrayList([10]u8);
@@ -20,51 +21,75 @@ const DelimPositions = struct {
 
 const IndividualParts = struct {
     left_col: [3]u8,
-    lef_col_len: usize,
+    left_col_len: usize,
     left_row: usize,
     right_col_len: usize,
     right_col: [3]u8,
     right_row: usize,
 };
 
-pub fn unwrapRange(this: *@This(), range: []const u8) !std.ArrayList([10]u8) {
-    _ = this;
-
+pub fn unwrapRange(range: []const u8) !std.ArrayList([10]u8) {
     var reference_list = ReferenceList.init(std.heap.page_allocator);
 
-    const range_delimiters = calcDelimiters(range);
+    const range_delimiters = try calcDelimiters(range);
 
     const left_col = extractLeftCol(range, &range_delimiters);
     const right_col = extractRightCol(range, &range_delimiters);
 
     const indiv_parts = IndividualParts{
         .left_col = left_col.column,
-        .lef_col_len = left_col.column_len,
-        .left_row = extractLeftRow(range, &range_delimiters),
+        .left_col_len = left_col.column_len,
+        .left_row = try extractLeftRow(range, &range_delimiters),
         .right_col = right_col.column,
         .right_col_len = right_col.column_len,
-        .right_row = extractRightRow(range, &range_delimiters),
+        .right_row = try extractRightRow(range, &range_delimiters),
     };
 
-    _ = indiv_parts;
+    try rangeToReferences(&indiv_parts, &reference_list);
 
     return reference_list;
 }
 
-fn rangeToReferences(indiv_parts: *IndividualParts, reference_list: *ReferenceList) void {
-    _ = reference_list;
+fn rangeToReferences(indiv_parts: *const IndividualParts, reference_list: *ReferenceList) !void {
+    const left_col_numeric = numberFromCol(&indiv_parts.left_col, indiv_parts.left_col_len);
+    const right_col_numeric = numberFromCol(&indiv_parts.right_col, indiv_parts.right_col_len);
 
-    _ = indiv_parts;
+    for (left_col_numeric..right_col_numeric + 1) |col_num| {
+        for (indiv_parts.left_row..indiv_parts.right_row + 1) |row_num| {
+            var reference = [_]u8{0} ** 10;
+
+            const column = colFromNumber(col_num);
+            const row = rowFromNumber(row_num);
+
+            var idx: usize = 0;
+            for (column) |value| {
+                if (value == 0) {
+                    break;
+                } else {
+                    reference[idx] = value;
+                    idx += 1;
+                }
+            }
+            for (row) |value| {
+                if (value == 0) {
+                    break;
+                } else {
+                    reference[idx] = value;
+                    idx += 1;
+                }
+            }
+
+            try reference_list.append(reference);
+        }
+    }
 }
 
 fn calcDelimiters(range: []const u8) !DelimPositions {
-    var idx_left: usize = 0;
-    while (range[idx_left] >= 'A' and range[idx_left] <= 'Z') : (idx_left += 1) {}
+    const row_characters = "0123456789";
 
     const range_delim_idx = std.mem.indexOf(u8, range, ":"[0..]) orelse return Error.rangeunwrapper_range_colon_divisor_na;
-
-    var idx_right: usize = 0;
-    while (range[(range_delim_idx + 1)..][idx_right] >= 'A' and range[(range_delim_idx + 1)..][idx_right] <= 'Z') : (idx_right += 1) {}
+    const idx_left = std.mem.indexOfAny(u8, range[0..range_delim_idx], row_characters[0..]) orelse return Error.rangeunwrapper_no_row_part_in_range;
+    const idx_right = std.mem.indexOfAny(u8, range[range_delim_idx + 1 ..], row_characters[0..]) orelse return Error.rangeunwrapper_no_row_part_in_range;
 
     const delimiters = DelimPositions{
         .left_col_start = 0,
@@ -106,6 +131,7 @@ fn extractRightCol(range: []const u8, range_delimiters: *const DelimPositions) s
     }
 
     return .{ .column = column, .column_len = column_len + 1 };
+    
 }
 
 fn extractRightRow(range: []const u8, range_delimiters: *const DelimPositions) !usize {
@@ -132,7 +158,7 @@ fn numberFromCol(col: *const [3]u8, len: usize) usize {
 }
 
 fn numToUpperChara(num: usize) u8 {
-    const num_as_u8:u8 = @intCast(num);
+    const num_as_u8: u8 = @intCast(num);
     return num_as_u8 + '@';
 }
 
@@ -149,11 +175,22 @@ fn colFromNumber(num: usize) [3]u8 {
         if (chara_num > 0) {
             result[idx] = numToUpperChara(chara_num);
             remainder -= chara_num * divisor;
+            idx += 1;    
         }
-        idx += 1;
     }
 
     return result;
+}
+
+fn rowFromNumber(num: usize) [7]u8 {
+    var row = [_]u8{0} ** 7;
+
+    const limb = [1]std.math.big.Limb{num};
+    const cons = std.math.big.int.Const{ .limbs = &limb, .positive = true };
+    var limb_buf: [10]std.math.big.Limb = undefined;
+    _ = std.math.big.int.Const.toString(cons, &row, 10, std.fmt.Case.lower, &limb_buf);
+
+    return row;
 }
 
 test "delimiter calculation" {
@@ -205,15 +242,33 @@ test "extract right row" {
     try std.testing.expect(result == 678);
 }
 
-test "col to num"{
-    const col = [3]u8{'X', 'F', 'D'};
+test "col to num" {
+    const col = [3]u8{ 'X', 'F', 'D' };
     const result = numberFromCol(&col, 3);
     try std.testing.expect(result == 16384);
 }
 
-test "num to chara"{
+test "num to chara" {
     const result = colFromNumber(16384);
     try std.testing.expect(result[0] == 'X');
     try std.testing.expect(result[1] == 'F');
     try std.testing.expect(result[2] == 'D');
+}
+
+test "row from number" {
+    const result = rowFromNumber(1234);
+    try std.testing.expect(result[0] == '1');
+    try std.testing.expect(result[1] == '2');
+    try std.testing.expect(result[2] == '3');
+    try std.testing.expect(result[3] == '4');
+    try std.testing.expect(result[4] == 0);
+}
+
+test "unwrap" {
+    const result = try unwrapRange("A1:B2"[0..]);
+    defer result.deinit();
+    try std.testing.expect(std.mem.eql(u8, result.items[0][0..2] , "A1"[0..]));
+    try std.testing.expect(std.mem.eql(u8, result.items[1][0..2] , "A2"[0..]));
+    try std.testing.expect(std.mem.eql(u8, result.items[2][0..2] , "B1"[0..]));
+    try std.testing.expect(std.mem.eql(u8, result.items[3][0..2] , "B2"[0..]));
 }

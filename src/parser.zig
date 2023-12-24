@@ -184,7 +184,7 @@ pub const Parser = struct {
 
     //reference operators :,' ',, (colon, single space)
     fn stage01(this: *@This()) !?TokenOperatorFunc {
-        var result_lhs = try this.stage00();
+        const result_lhs = try this.stage00();
         if (this.current_token) |token_operator| {
             var result_rhs: ?TokenOperatorFunc = null;
 

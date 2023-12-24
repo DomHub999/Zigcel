@@ -38,8 +38,17 @@ pub fn main() !void {
         // const result = returnStr();
 
         // std.debug.print("{}\n", .{result.u});
-         std.debug.print("{}\n", .{numFromCharacter('A')});
 
+
+        const l = [1]std.math.big.Limb{123};
+        const c = std.math.big.int.Const{ .limbs = l[0..], .positive = true };
+
+        var s:[10]u8 = [_]u8{0}**10;
+        var lb: [10]std.math.big.Limb = undefined;
+        const result = std.math.big.int.Const.toString(c, &s, 10, std.fmt.Case.lower, &lb);
+        _ = result;
+
+        
 
     }
 

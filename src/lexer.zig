@@ -395,18 +395,18 @@ test "30*20" {
 
     var token = lexer.getNext().?;
     var token_slice = Lexer.extractToken(&token.token);
-    var result_1 = std.mem.eql(u8, token_slice, "30"[0..]);
-    try std.testing.expect(result_1);
+    var result = std.mem.eql(u8, token_slice, "30"[0..]);
+    try std.testing.expect(result);
 
     token = lexer.getNext().?;
     token_slice = Lexer.extractToken(&token.token);
-    var result_2 = std.mem.eql(u8, token_slice, "*"[0..]);
-    try std.testing.expect(result_2);
+    result = std.mem.eql(u8, token_slice, "*"[0..]);
+    try std.testing.expect(result);
 
     token = lexer.getNext().?;
     token_slice = Lexer.extractToken(&token.token);
-    var result_3 = std.mem.eql(u8, token_slice, "20"[0..]);
-    try std.testing.expect(result_3);
+    result = std.mem.eql(u8, token_slice, "20"[0..]);
+    try std.testing.expect(result);
 }
 
 test "(50 * 40 )-20" {
@@ -419,38 +419,39 @@ test "(50 * 40 )-20" {
 
     var token = lexer.getNext().?;
     var token_slice = Lexer.extractToken(&token.token);
-    var result_1 = std.mem.eql(u8, token_slice, "("[0..]);
-    try std.testing.expect(result_1);
+    var result = std.mem.eql(u8, token_slice, "("[0..]);
+    try std.testing.expect(result);
 
     token = lexer.getNext().?;
     token_slice = Lexer.extractToken(&token.token);
-    var result_2 = std.mem.eql(u8, token_slice, "50"[0..]);
-    try std.testing.expect(result_2);
+    result = std.mem.eql(u8, token_slice, "50"[0..]);
+    try std.testing.expect(result);
 
     token = lexer.getNext().?;
     token_slice = Lexer.extractToken(&token.token);
-    var result_3 = std.mem.eql(u8, token_slice, "*"[0..]);
-    try std.testing.expect(result_3);
+    result = std.mem.eql(u8, token_slice, "*"[0..]);
+    try std.testing.expect(result);
 
     token = lexer.getNext().?;
     token_slice = Lexer.extractToken(&token.token);
-    var result_4 = std.mem.eql(u8, token_slice, "40"[0..]);
-    try std.testing.expect(result_4);
+    result = std.mem.eql(u8, token_slice, "40"[0..]);
+    try std.testing.expect(result);
 
     token = lexer.getNext().?;
     token_slice = Lexer.extractToken(&token.token);
-    var result_5 = std.mem.eql(u8, token_slice, ")"[0..]);
-    try std.testing.expect(result_5);
+    result = std.mem.eql(u8, token_slice, ")"[0..]);
+
+    try std.testing.expect(result);
 
     token = lexer.getNext().?;
     token_slice = Lexer.extractToken(&token.token);
-    var result_6 = std.mem.eql(u8, token_slice, "-"[0..]);
-    try std.testing.expect(result_6);
+    result = std.mem.eql(u8, token_slice, "-"[0..]);
+    try std.testing.expect(result);
 
     token = lexer.getNext().?;
     token_slice = Lexer.extractToken(&token.token);
-    var result_7 = std.mem.eql(u8, token_slice, "20"[0..]);
-    try std.testing.expect(result_7);
+    result = std.mem.eql(u8, token_slice, "20"[0..]);
+    try std.testing.expect(result);
 }
 
 test "string" {
@@ -463,13 +464,13 @@ test "string" {
 
     var token = lexer.getNext().?;
     var token_slice = Lexer.extractToken(&token.token);
-    var result_1 = std.mem.eql(u8, token_slice, "wurst"[0..]);
-    try std.testing.expect(result_1);
+    var result = std.mem.eql(u8, token_slice, "wurst"[0..]);
+    try std.testing.expect(result);
 
     token = lexer.getNext().?;
     token_slice = Lexer.extractToken(&token.token);
-    var result_2 = std.mem.eql(u8, token_slice, "+"[0..]);
-    try std.testing.expect(result_2);
+    result = std.mem.eql(u8, token_slice, "+"[0..]);
+    try std.testing.expect(result);
 }
 
 test "reference" {
