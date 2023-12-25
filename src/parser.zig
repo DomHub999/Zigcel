@@ -9,33 +9,48 @@ const Error = error{
     parser_expected_operand_is_missing,
     parser_token_type_not_supported,
     parser_no_operand_to_negate_available,
-    parser_max_operator_prefix_exceeded,
-    parser_max_operator_suffix_exceeded,
+    parser_no_payload_exceeded_max,
+    // parser_max_operator_prefix_exceeded,
+    // parser_max_operator_suffix_exceeded,
 };
 
-const N_PRE_SUFF_OPERATORS: usize = 5;
+// const N_PRE_SUFF_OPERATORS: usize = 5;
+const NUMBER_OF_PAYLOADS: usize = 10;
 const TokenOperatorFunc = struct {
     token: tok.Token = undefined,
-    prefix_operators: [N_PRE_SUFF_OPERATORS]?InstructionSequence.OperatorFunction = [_]?InstructionSequence.OperatorFunction{null} ** N_PRE_SUFF_OPERATORS,
-    suffix_operators: [N_PRE_SUFF_OPERATORS]?InstructionSequence.OperatorFunction = [_]?InstructionSequence.OperatorFunction{null} ** N_PRE_SUFF_OPERATORS,
-    idx_prefix_op: usize = 0,
-    idx_suffix_op: usize = 0,
+    payload: [NUMBER_OF_PAYLOADS]?InstructionSequence.OperatorFunction = [_]?InstructionSequence.OperatorFunction{null} ** NUMBER_OF_PAYLOADS,
 
+    // prefix_operators: [N_PRE_SUFF_OPERATORS]?InstructionSequence.OperatorFunction = [_]?InstructionSequence.OperatorFunction{null} ** N_PRE_SUFF_OPERATORS,
+    // suffix_operators: [N_PRE_SUFF_OPERATORS]?InstructionSequence.OperatorFunction = [_]?InstructionSequence.OperatorFunction{null} ** N_PRE_SUFF_OPERATORS,
 
-    fn pushBackPrefix(this: *@This(), func: InstructionSequence.OperatorFunction) !void {
-        if (this.idx_prefix_op >= N_PRE_SUFF_OPERATORS) {
-            return Error.parser_max_operator_prefix_exceeded;
+    idx_payload: usize = 0,
+
+    // idx_prefix_op: usize = 0,
+    // idx_suffix_op: usize = 0,
+
+    fn pushBackPayload(this: *@This(), func: InstructionSequence.OperatorFunction) !void {
+        if (this.idx_payload >= NUMBER_OF_PAYLOADS) {
+            return Error.parser_no_payload_exceeded_max;
         }
-        this.prefix_operators[this.idx_prefix_op] = func;
-        this.idx_prefix_op += 1;
+
+        this.payload[this.idx_payload] = func;
+        this.idx_payload += 1;
     }
-    fn pushBackSuffix(this: *@This(), func: InstructionSequence.OperatorFunction) !void {
-        if (this.idx_prefix_op >= N_PRE_SUFF_OPERATORS) {
-            return Error.parser_max_operator_suffix_exceeded;
-        }
-        this.suffix_operators[this.idx_suffix_op] = func;
-        this.idx_suffix_op += 1;
-    }
+
+    // fn pushBackPrefix(this: *@This(), func: InstructionSequence.OperatorFunction) !void {
+    //     if (this.idx_prefix_op >= N_PRE_SUFF_OPERATORS) {
+    //         return Error.parser_max_operator_prefix_exceeded;
+    //     }
+    //     this.prefix_operators[this.idx_prefix_op] = func;
+    //     this.idx_prefix_op += 1;
+    // }
+    // fn pushBackSuffix(this: *@This(), func: InstructionSequence.OperatorFunction) !void {
+    //     if (this.idx_prefix_op >= N_PRE_SUFF_OPERATORS) {
+    //         return Error.parser_max_operator_suffix_exceeded;
+    //     }
+    //     this.suffix_operators[this.idx_suffix_op] = func;
+    //     this.idx_suffix_op += 1;
+    // }
 };
 
 pub const Parser = struct {
@@ -101,9 +116,13 @@ pub const Parser = struct {
         }
 
         //necessary for a single number, negated numer etc.
-        if (result_lhs) |*lhs| {
-            try this.triggerStackSequenceUnary(lhs);
+        if(result_lhs != null){
+            try this.triggerStackSequenceUnary(&result_lhs);
         }
+
+        // if (result_lhs) |*lhs| {
+        //     try this.triggerStackSequenceUnary(lhs);
+        // }
     }
 
     //concatenation &
@@ -202,6 +221,14 @@ pub const Parser = struct {
 
     //constant, string, negation, opening bracket, formula, reference, range
     fn stage00(this: *@This()) !?TokenOperatorFunc {
+
+        //get rid of the comma/semicolon before the operand
+        if (this.current_token) |symbol| {
+            if (symbol.token_type == TokenType.argument_deliminiter) {
+                this.consumeToken();
+            }
+        }
+
         if (this.current_token) |token_operand| {
             switch (token_operand.token_type) {
 
@@ -223,12 +250,14 @@ pub const Parser = struct {
                 //NEGATION
                 TokenType.minus => {
                     var token_fnc = TokenOperatorFunc{};
-                    try token_fnc.pushBackPrefix(InstructionSequence.negate);
+                    try token_fnc.pushBackPayload(InstructionSequence.negate);
+                    // try token_fnc.pushBackPrefix(InstructionSequence.negate);
                     this.consumeToken();
 
                     while (this.current_token) |token_unwrapped| {
                         if (token_unwrapped.token_type == TokenType.minus) {
-                            try token_fnc.pushBackPrefix(InstructionSequence.negate);
+                            try token_fnc.pushBackPayload(InstructionSequence.negate);
+                            // try token_fnc.pushBackPrefix(InstructionSequence.negate);
                         } else {
                             break;
                         }
@@ -248,24 +277,21 @@ pub const Parser = struct {
                     return token_fnc;
                 },
 
-                //OPENING BRACKET
-                TokenType.bracket_open => {},
+                // //OPENING BRACKET
+                // TokenType.bracket_open => {},
 
-                //FORMULA
-                TokenType.formula => {
-                    this.consumeToken(); //formula
-                    this.consumeToken(); //opening bracket    
+                // //FORMULA
+                // TokenType.formula => {
+                //     this.consumeToken(); //formula
+                //     this.consumeToken(); //opening bracket
 
-                },
+                // },
 
-                //REFERENCE
-                TokenType.reference => {
+                // //REFERENCE
+                // TokenType.reference => {},
 
-
-                },
-
-                //RANGE
-                TokenType.range => {},
+                // //RANGE
+                // TokenType.range => {},
 
                 else => {
                     return Error.parser_token_type_not_supported;
@@ -279,7 +305,9 @@ pub const Parser = struct {
     fn dealWithPercentSign(this: *@This(), token_fnc: *TokenOperatorFunc) !void {
         while (this.current_token) |token_unwrapped| {
             if (token_unwrapped.token_type == TokenType.percent_sign) {
-                try token_fnc.pushBackSuffix(InstructionSequence.percentOf);
+                try token_fnc.pushBackPayload(InstructionSequence.percentOf);
+
+                // try token_fnc.pushBackSuffix(InstructionSequence.percentOf);
                 this.consumeToken();
             } else {
                 break;
@@ -292,53 +320,62 @@ pub const Parser = struct {
             if (lhs.* != null) {
                 try this.instruction_sequence.pushConstant(&(lhs.*.?.token));
 
-                var idx: usize = 0;
-                while (idx < lhs.*.?.idx_prefix_op) : (idx += 1) {
-                    try lhs.*.?.prefix_operators[idx].?(&this.instruction_sequence);
-                }
-                idx = 0;
-                while (idx < lhs.*.?.idx_suffix_op) : (idx += 1) {
-                    try lhs.*.?.suffix_operators[idx].?(&this.instruction_sequence);
-                }
+                try this.unloadPayload(lhs);
+
+                // var idx: usize = 0;
+                // while (idx < lhs.*.?.idx_prefix_op) : (idx += 1) {
+                //     try lhs.*.?.prefix_operators[idx].?(&this.instruction_sequence);
+                // }
+                // idx = 0;
+                // while (idx < lhs.*.?.idx_suffix_op) : (idx += 1) {
+                //     try lhs.*.?.suffix_operators[idx].?(&this.instruction_sequence);
+                // }
             }
             if (rhs.* != null) {
                 try this.instruction_sequence.pushConstant(&(rhs.*.?.token));
 
-                var idx: usize = 0;
-                while (idx < rhs.*.?.idx_prefix_op) : (idx += 1) {
-                    try rhs.*.?.prefix_operators[idx].?(&this.instruction_sequence);
-                }
-                idx = 0;
-                while (idx < rhs.*.?.idx_suffix_op) : (idx += 1) {
-                    try rhs.*.?.suffix_operators[idx].?(&this.instruction_sequence);
-                }
+                try this.unloadPayload(rhs);
+
+                // var idx: usize = 0;
+                // while (idx < rhs.*.?.idx_prefix_op) : (idx += 1) {
+                //     try rhs.*.?.prefix_operators[idx].?(&this.instruction_sequence);
+                // }
+                // idx = 0;
+                // while (idx < rhs.*.?.idx_suffix_op) : (idx += 1) {
+                //     try rhs.*.?.suffix_operators[idx].?(&this.instruction_sequence);
+                // }
             }
+
             this.first_token = false;
         } else {
             if (lhs.* != null) {
                 try InstructionSequence.pushConstant(&this.instruction_sequence, &(lhs.*.?.token));
 
-                var idx: usize = 0;
-                while (idx < lhs.*.?.idx_prefix_op) : (idx += 1) {
-                    try lhs.*.?.prefix_operators[idx].?(&this.instruction_sequence);
-                }
-                idx = 0;
-                while (idx < lhs.*.?.idx_suffix_op) : (idx += 1) {
-                    try lhs.*.?.suffix_operators[idx].?(&this.instruction_sequence);
-                }
+                try this.unloadPayload(lhs);
+
+                // var idx: usize = 0;
+                // while (idx < lhs.*.?.idx_prefix_op) : (idx += 1) {
+                //     try lhs.*.?.prefix_operators[idx].?(&this.instruction_sequence);
+                // }
+                // idx = 0;
+                // while (idx < lhs.*.?.idx_suffix_op) : (idx += 1) {
+                //     try lhs.*.?.suffix_operators[idx].?(&this.instruction_sequence);
+                // }
             }
 
             if (rhs.* != null) {
                 try InstructionSequence.pushConstant(&this.instruction_sequence, &(rhs.*.?.token));
 
-                var idx: usize = 0;
-                while (idx < rhs.*.?.idx_prefix_op) : (idx += 1) {
-                    try rhs.*.?.prefix_operators[idx].?(&this.instruction_sequence);
-                }
-                idx = 0;
-                while (idx < rhs.*.?.idx_suffix_op) : (idx += 1) {
-                    try rhs.*.?.suffix_operators[idx].?(&this.instruction_sequence);
-                }
+                try this.unloadPayload(rhs);
+
+                // var idx: usize = 0;
+                // while (idx < rhs.*.?.idx_prefix_op) : (idx += 1) {
+                //     try rhs.*.?.prefix_operators[idx].?(&this.instruction_sequence);
+                // }
+                // idx = 0;
+                // while (idx < rhs.*.?.idx_suffix_op) : (idx += 1) {
+                //     try rhs.*.?.suffix_operators[idx].?(&this.instruction_sequence);
+                // }
             }
         }
 
@@ -348,11 +385,19 @@ pub const Parser = struct {
         rhs.* = null;
     }
 
-    fn triggerStackSequenceUnary(this: *@This(), lhs: *TokenOperatorFunc) !void {
-        try InstructionSequence.pushConstant(&this.instruction_sequence, &lhs.token);
+    fn triggerStackSequenceUnary(this: *@This(), lhs: *?TokenOperatorFunc) !void {
+        try InstructionSequence.pushConstant(&this.instruction_sequence, &(lhs.*.?.token));
+        try this.unloadPayload(lhs);
+        // var idx: usize = 0;
+        // while (idx < lhs.idx_prefix_op) : (idx += 1) {
+        //     try lhs.prefix_operators[idx].?(&this.instruction_sequence);
+        // }
+    }
+
+    fn unloadPayload(this: *@This(), tok_op_fn: *?TokenOperatorFunc) !void {
         var idx: usize = 0;
-        while (idx < lhs.idx_prefix_op) : (idx += 1) {
-            try lhs.prefix_operators[idx].?(&this.instruction_sequence);
+        while (idx < tok_op_fn.*.?.idx_payload) : (idx += 1) {
+            try tok_op_fn.*.?.payload[idx].?(&this.instruction_sequence);
         }
     }
 };
@@ -464,6 +509,7 @@ const InstructionSequence = struct {
 test "100/50+10*20" {
     var lexer = lex.Lexer{};
     lexer.init();
+    defer lexer.drop();
 
     const source = "100/50+10*20";
     try lexer.lex(source);
@@ -493,6 +539,7 @@ test "100/50+10*20" {
 test "strings" {
     var lexer = lex.Lexer{};
     lexer.init();
+    defer lexer.drop();
 
     const source = "\"abc\"&\"def\"";
     try lexer.lex(source);
@@ -516,6 +563,7 @@ test "strings" {
 test "negate/percent/power" {
     var lexer = lex.Lexer{};
     lexer.init();
+    defer lexer.drop();
 
     const source = "-10^300%";
     try lexer.lex(source);
@@ -525,13 +573,15 @@ test "negate/percent/power" {
     const instruction_sequence = try parser.parse();
 
     var solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.string } } },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.string } } },
-        Instruction{ .single_instruction = Instructions.concat_strings },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.constant } } },
+        Instruction{ .single_instruction = Instructions.negate },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.constant } } },
+        Instruction{ .single_instruction = Instructions.percent_of },
+        Instruction{ .single_instruction = Instructions.to_the_power_of },
     };
 
-    @memcpy(solution[0].stack_operation.token.token[0..3], "abc");
-    @memcpy(solution[1].stack_operation.token.token[0..3], "def");
+    @memcpy(solution[0].stack_operation.token.token[0..2], "10");
+    @memcpy(solution[2].stack_operation.token.token[0..3], "300");
 
     try compareSolutionToinstrSeq(&solution, &instruction_sequence);
 }
@@ -545,6 +595,21 @@ fn compareSolutionToinstrSeq(solution: []Instruction, instruction_sequence: *con
             InstructionType.stack_operation => {
                 try std.testing.expect(sol.stack_operation.instruction == itm.stack_operation.instruction);
                 try std.testing.expect(std.mem.eql(u8, sol.stack_operation.token.token[0..], itm.stack_operation.token.token[0..]));
+            },
+        }
+    }
+}
+
+fn printInstructionSequence(instruction_sequence: *const InstructionSequence) void {
+    std.debug.print("{c}\n", .{' '});
+
+    for (instruction_sequence.instruction_list.items) |value| {
+        switch (value) {
+            InstructionType.single_instruction => {
+                std.debug.print("{s}\n", .{@tagName(value.single_instruction)});
+            },
+            InstructionType.stack_operation => {
+                std.debug.print("{s} {s}\n", .{ @tagName(value.stack_operation.instruction), lex.Lexer.extractToken(&value.stack_operation.token.token) });
             },
         }
     }
