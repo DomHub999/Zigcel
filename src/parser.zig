@@ -10,23 +10,14 @@ const Error = error{
     parser_token_type_not_supported,
     parser_no_operand_to_negate_available,
     parser_no_payload_exceeded_max,
-    // parser_max_operator_prefix_exceeded,
-    // parser_max_operator_suffix_exceeded,
+    OutOfMemory,
 };
 
-// const N_PRE_SUFF_OPERATORS: usize = 5;
 const NUMBER_OF_PAYLOADS: usize = 10;
 const TokenOperatorFunc = struct {
     token: tok.Token = undefined,
     payload: [NUMBER_OF_PAYLOADS]?InstructionSequence.OperatorFunction = [_]?InstructionSequence.OperatorFunction{null} ** NUMBER_OF_PAYLOADS,
-
-    // prefix_operators: [N_PRE_SUFF_OPERATORS]?InstructionSequence.OperatorFunction = [_]?InstructionSequence.OperatorFunction{null} ** N_PRE_SUFF_OPERATORS,
-    // suffix_operators: [N_PRE_SUFF_OPERATORS]?InstructionSequence.OperatorFunction = [_]?InstructionSequence.OperatorFunction{null} ** N_PRE_SUFF_OPERATORS,
-
     idx_payload: usize = 0,
-
-    // idx_prefix_op: usize = 0,
-    // idx_suffix_op: usize = 0,
 
     fn pushBackPayload(this: *@This(), func: InstructionSequence.OperatorFunction) !void {
         if (this.idx_payload >= NUMBER_OF_PAYLOADS) {
@@ -36,27 +27,11 @@ const TokenOperatorFunc = struct {
         this.payload[this.idx_payload] = func;
         this.idx_payload += 1;
     }
-
-    // fn pushBackPrefix(this: *@This(), func: InstructionSequence.OperatorFunction) !void {
-    //     if (this.idx_prefix_op >= N_PRE_SUFF_OPERATORS) {
-    //         return Error.parser_max_operator_prefix_exceeded;
-    //     }
-    //     this.prefix_operators[this.idx_prefix_op] = func;
-    //     this.idx_prefix_op += 1;
-    // }
-    // fn pushBackSuffix(this: *@This(), func: InstructionSequence.OperatorFunction) !void {
-    //     if (this.idx_prefix_op >= N_PRE_SUFF_OPERATORS) {
-    //         return Error.parser_max_operator_suffix_exceeded;
-    //     }
-    //     this.suffix_operators[this.idx_suffix_op] = func;
-    //     this.idx_suffix_op += 1;
-    // }
 };
 
 pub const Parser = struct {
     lexer: *lex.Lexer = undefined,
     current_token: ?*Token = null,
-    first_token: bool = true,
     instruction_sequence: InstructionSequence = undefined,
 
     pub fn init(this: *@This(), lexer: *lex.Lexer) void {
@@ -75,152 +50,132 @@ pub const Parser = struct {
         this.current_token = this.lexer.getNext();
     }
 
+    const LayerFunction = *const fn(this: *@This())Error!?TokenOperatorFunc;
+    fn callToUnderlLayer(this:*@This(), operator_function: InstructionSequence.OperatorFunction, lhs: *?TokenOperatorFunc, funToUnderlLayer: LayerFunction)!void{
+        this.consumeToken();
+        const result_rhs = try funToUnderlLayer(this);
+        try this.triggerStackSequenceBinary(operator_function, lhs, &result_rhs);
+    }
+
     //comparison =, >, <, >=, <=, <>
     fn stage06(this: *@This()) !void {
+
         var result_lhs = try this.stage05();
 
         if (this.current_token) |token_operator| {
-            var result_rhs: ?TokenOperatorFunc = null;
-
-            while (token_operator.*.token_type == TokenType.equal_sign) {
-                this.consumeToken();
-                result_rhs = try this.stage05();
-                try this.triggerStackSequenceBinary(InstructionSequence.equal, &result_lhs, &result_rhs);
+            while (token_operator.token_type == TokenType.equal_sign) {
+                try this.callToUnderlLayer(InstructionSequence.equal, &result_lhs, Parser.stage05);
             }
-
-            while (token_operator.*.token_type == TokenType.greater_than_sign) {
-                this.consumeToken();
-                result_rhs = try this.stage05();
-                try this.triggerStackSequenceBinary(InstructionSequence.greaterThan, &result_lhs, &result_rhs);
+            while (token_operator.token_type == TokenType.greater_than_sign) {
+                try this.callToUnderlLayer(InstructionSequence.greaterThan, &result_lhs, Parser.stage05);
             }
-            while (token_operator.*.token_type == TokenType.less_than_sign) {
-                this.consumeToken();
-                result_rhs = try this.stage05();
-                try this.triggerStackSequenceBinary(InstructionSequence.lessThan, &result_lhs, &result_rhs);
+            while (token_operator.token_type == TokenType.less_than_sign) {
+                try this.callToUnderlLayer(InstructionSequence.lessThan, &result_lhs, Parser.stage05);
             }
-            while (token_operator.*.token_type == TokenType.greater_equal_to_sign) {
-                this.consumeToken();
-                result_rhs = try this.stage05();
-                try this.triggerStackSequenceBinary(InstructionSequence.greaterEqualThan, &result_lhs, &result_rhs);
+            while (token_operator.token_type == TokenType.greater_equal_to_sign) {
+                try this.callToUnderlLayer(InstructionSequence.greaterEqualThan, &result_lhs, Parser.stage05);
             }
-            while (token_operator.*.token_type == TokenType.less_equal_to_sign) {
-                this.consumeToken();
-                result_rhs = try this.stage05();
-                try this.triggerStackSequenceBinary(InstructionSequence.lessEqualThan, &result_lhs, &result_rhs);
+            while (token_operator.token_type == TokenType.less_equal_to_sign) {
+                try this.callToUnderlLayer(InstructionSequence.lessEqualThan, &result_lhs, Parser.stage05);
             }
-            while (token_operator.*.token_type == TokenType.not_equal_to_sign) {
-                this.consumeToken();
-                result_rhs = try this.stage05();
-                try this.triggerStackSequenceBinary(InstructionSequence.notEqualTo, &result_lhs, &result_rhs);
+            while (token_operator.token_type == TokenType.not_equal_to_sign) {
+                try this.callToUnderlLayer(InstructionSequence.notEqualTo, &result_lhs, Parser.stage05);
             }
         }
 
         //necessary for a single number, negated numer etc.
-        if(result_lhs != null){
-            try this.triggerStackSequenceUnary(&result_lhs);
+        if (result_lhs) |lhs| {
+            try this.triggerStackSequenceUnary(&lhs);
         }
-
-        // if (result_lhs) |*lhs| {
-        //     try this.triggerStackSequenceUnary(lhs);
-        // }
     }
 
     //concatenation &
-    fn stage05(this: *@This()) !?TokenOperatorFunc {
-        var result_lhs = try this.stage04();
-        if (this.current_token) |token_operator| {
-            var result_rhs: ?TokenOperatorFunc = null;
+    fn stage05(this: *@This()) Error!?TokenOperatorFunc {
 
-            while (token_operator.*.token_type == TokenType.ampersand) {
-                this.consumeToken();
-                result_rhs = try this.stage04();
-                try this.triggerStackSequenceBinary(InstructionSequence.concatenate, &result_lhs, &result_rhs);
+        var result_lhs = try this.stage04();
+
+        if (this.current_token) |token_operator| {
+            while (token_operator.token_type == TokenType.ampersand) {
+                try this.callToUnderlLayer(InstructionSequence.concatenate, &result_lhs, Parser.stage04);
                 return null;
             }
         }
+
         return result_lhs;
     }
 
     //addition and subtraction +,-
-    fn stage04(this: *@This()) !?TokenOperatorFunc {
-        var result_lhs = try this.stage03();
-        if (this.current_token) |token_operator| {
-            var result_rhs: ?TokenOperatorFunc = null;
+    fn stage04(this: *@This()) Error!?TokenOperatorFunc {
 
-            while (token_operator.*.token_type == TokenType.plus) {
-                this.consumeToken();
-                result_rhs = try this.stage03();
-                try this.triggerStackSequenceBinary(InstructionSequence.add, &result_lhs, &result_rhs);
+        var result_lhs = try this.stage03();
+
+        if (this.current_token) |token_operator| {
+            while (token_operator.token_type == TokenType.plus) {
+                try this.callToUnderlLayer(InstructionSequence.add, &result_lhs, Parser.stage03);
                 return null;
             }
-
-            while (token_operator.*.token_type == TokenType.minus) {
-                this.consumeToken();
-                result_rhs = try this.stage03();
-                try this.triggerStackSequenceBinary(InstructionSequence.subtract, &result_lhs, &result_lhs);
+            while (token_operator.token_type == TokenType.minus) {
+                try this.callToUnderlLayer(InstructionSequence.subtract, &result_lhs, Parser.stage03);
                 return null;
             }
         }
+
         return result_lhs;
     }
 
     //multiplication and division *,/
-    fn stage03(this: *@This()) !?TokenOperatorFunc {
+    fn stage03(this: *@This()) Error!?TokenOperatorFunc {
+        
         var result_lhs = try this.stage02();
+        
         if (this.current_token) |token_operator| {
-            var result_rhs: ?TokenOperatorFunc = null;
-
-            while (token_operator.*.token_type == TokenType.asterisk) {
-                this.consumeToken();
-                result_rhs = try this.stage02();
-                try this.triggerStackSequenceBinary(InstructionSequence.multipy, &result_lhs, &result_rhs);
+        
+            while (token_operator.token_type == TokenType.asterisk) {
+                try this.callToUnderlLayer(InstructionSequence.multipy, &result_lhs, Parser.stage02);
                 return null;
             }
-
-            while (token_operator.*.token_type == TokenType.forward_slash) {
-                this.consumeToken();
-                result_rhs = try this.stage02();
-                try this.triggerStackSequenceBinary(InstructionSequence.divide, &result_lhs, &result_rhs);
+            while (token_operator.token_type == TokenType.forward_slash) {
+                try this.callToUnderlLayer(InstructionSequence.divide, &result_lhs, Parser.stage02);
                 return null;
             }
         }
+
         return result_lhs;
     }
 
     //exponentiation ^
-    fn stage02(this: *@This()) !?TokenOperatorFunc {
-        var result_lhs = try this.stage01();
-        if (this.current_token) |token_operator| {
-            var result_rhs: ?TokenOperatorFunc = null;
+    fn stage02(this: *@This()) Error!?TokenOperatorFunc {
 
-            while (token_operator.*.token_type == TokenType.caret) {
-                this.consumeToken();
-                result_rhs = try this.stage01();
-                try this.triggerStackSequenceBinary(InstructionSequence.toThePowerOf, &result_lhs, &result_rhs);
+        var result_lhs = try this.stage00();
+
+        if (this.current_token) |token_operator| {
+            while (token_operator.token_type == TokenType.caret) {
+                try this.callToUnderlLayer(InstructionSequence.toThePowerOf, &result_lhs, Parser.stage00);
                 return null;
             }
         }
+
         return result_lhs;
     }
 
-    //reference operators ' ' (single space)
-    fn stage01(this: *@This()) !?TokenOperatorFunc {
-        const result_lhs = try this.stage00();
-        if (this.current_token) |token_operator| {
-            var result_rhs: ?TokenOperatorFunc = null;
+    // //reference operators ' ' (single space)
+    // fn stage01(this: *@This()) Error!?TokenOperatorFunc {
+    //     const result_lhs = try this.stage00();
+    //     if (this.current_token) |token_operator| {
+    //         var result_rhs: ?TokenOperatorFunc = null;
 
-            while (token_operator.*.token_type == TokenType.space) {
-                this.consumeToken();
-                result_rhs = try this.stage00();
-                // try this.triggerStackSequenceBinary(InstructionSequence.toThePowerOf, &result_lhs, &result_rhs);
-                return null;
-            }
-        }
-        return result_lhs;
-    }
+    //         while (token_operator.*.token_type == TokenType.space) {
+    //             this.consumeToken();
+    //             result_rhs = try this.stage00();
+    //             // try this.triggerStackSequenceBinary(InstructionSequence.toThePowerOf, &result_lhs, &result_rhs);
+    //             return null;
+    //         }
+    //     }
+    //     return result_lhs;
+    // }
 
     //constant, string, negation, opening bracket, formula, reference, range
-    fn stage00(this: *@This()) !?TokenOperatorFunc {
+    fn stage00(this: *@This()) Error!?TokenOperatorFunc {
 
         //get rid of the comma/semicolon before the operand
         if (this.current_token) |symbol| {
@@ -251,13 +206,11 @@ pub const Parser = struct {
                 TokenType.minus => {
                     var token_fnc = TokenOperatorFunc{};
                     try token_fnc.pushBackPayload(InstructionSequence.negate);
-                    // try token_fnc.pushBackPrefix(InstructionSequence.negate);
                     this.consumeToken();
 
                     while (this.current_token) |token_unwrapped| {
                         if (token_unwrapped.token_type == TokenType.minus) {
                             try token_fnc.pushBackPayload(InstructionSequence.negate);
-                            // try token_fnc.pushBackPrefix(InstructionSequence.negate);
                         } else {
                             break;
                         }
@@ -306,8 +259,6 @@ pub const Parser = struct {
         while (this.current_token) |token_unwrapped| {
             if (token_unwrapped.token_type == TokenType.percent_sign) {
                 try token_fnc.pushBackPayload(InstructionSequence.percentOf);
-
-                // try token_fnc.pushBackSuffix(InstructionSequence.percentOf);
                 this.consumeToken();
             } else {
                 break;
@@ -315,89 +266,30 @@ pub const Parser = struct {
         }
     }
 
-    fn triggerStackSequenceBinary(this: *@This(), operator_function: InstructionSequence.OperatorFunction, lhs: *?TokenOperatorFunc, rhs: *?TokenOperatorFunc) !void {
-        if (this.first_token) {
-            if (lhs.* != null) {
-                try this.instruction_sequence.pushConstant(&(lhs.*.?.token));
+    fn triggerStackSequenceBinary(this: *@This(), operator_function: InstructionSequence.OperatorFunction, lhs: *const ?TokenOperatorFunc, rhs: *const ?TokenOperatorFunc) !void {
 
-                try this.unloadPayload(lhs);
-
-                // var idx: usize = 0;
-                // while (idx < lhs.*.?.idx_prefix_op) : (idx += 1) {
-                //     try lhs.*.?.prefix_operators[idx].?(&this.instruction_sequence);
-                // }
-                // idx = 0;
-                // while (idx < lhs.*.?.idx_suffix_op) : (idx += 1) {
-                //     try lhs.*.?.suffix_operators[idx].?(&this.instruction_sequence);
-                // }
-            }
-            if (rhs.* != null) {
-                try this.instruction_sequence.pushConstant(&(rhs.*.?.token));
-
-                try this.unloadPayload(rhs);
-
-                // var idx: usize = 0;
-                // while (idx < rhs.*.?.idx_prefix_op) : (idx += 1) {
-                //     try rhs.*.?.prefix_operators[idx].?(&this.instruction_sequence);
-                // }
-                // idx = 0;
-                // while (idx < rhs.*.?.idx_suffix_op) : (idx += 1) {
-                //     try rhs.*.?.suffix_operators[idx].?(&this.instruction_sequence);
-                // }
-            }
-
-            this.first_token = false;
-        } else {
-            if (lhs.* != null) {
-                try InstructionSequence.pushConstant(&this.instruction_sequence, &(lhs.*.?.token));
-
-                try this.unloadPayload(lhs);
-
-                // var idx: usize = 0;
-                // while (idx < lhs.*.?.idx_prefix_op) : (idx += 1) {
-                //     try lhs.*.?.prefix_operators[idx].?(&this.instruction_sequence);
-                // }
-                // idx = 0;
-                // while (idx < lhs.*.?.idx_suffix_op) : (idx += 1) {
-                //     try lhs.*.?.suffix_operators[idx].?(&this.instruction_sequence);
-                // }
-            }
-
-            if (rhs.* != null) {
-                try InstructionSequence.pushConstant(&this.instruction_sequence, &(rhs.*.?.token));
-
-                try this.unloadPayload(rhs);
-
-                // var idx: usize = 0;
-                // while (idx < rhs.*.?.idx_prefix_op) : (idx += 1) {
-                //     try rhs.*.?.prefix_operators[idx].?(&this.instruction_sequence);
-                // }
-                // idx = 0;
-                // while (idx < rhs.*.?.idx_suffix_op) : (idx += 1) {
-                //     try rhs.*.?.suffix_operators[idx].?(&this.instruction_sequence);
-                // }
-            }
+        if (lhs.*) |l| {
+            try this.instruction_sequence.pushConstant(&l.token);
+            try this.unloadPayload(&l);
+        }
+        if (rhs.*) |r| {
+            try this.instruction_sequence.pushConstant(&r.token);
+            try this.unloadPayload(&r);
         }
 
         try operator_function(&this.instruction_sequence);
 
-        lhs.* = null;
-        rhs.* = null;
     }
 
-    fn triggerStackSequenceUnary(this: *@This(), lhs: *?TokenOperatorFunc) !void {
-        try InstructionSequence.pushConstant(&this.instruction_sequence, &(lhs.*.?.token));
+    fn triggerStackSequenceUnary(this: *@This(), lhs: *const TokenOperatorFunc) !void {
+        try this.instruction_sequence.pushConstant(&lhs.token);
         try this.unloadPayload(lhs);
-        // var idx: usize = 0;
-        // while (idx < lhs.idx_prefix_op) : (idx += 1) {
-        //     try lhs.prefix_operators[idx].?(&this.instruction_sequence);
-        // }
     }
 
-    fn unloadPayload(this: *@This(), tok_op_fn: *?TokenOperatorFunc) !void {
+    fn unloadPayload(this: *@This(), tok_op_fn: *const TokenOperatorFunc) !void {
         var idx: usize = 0;
-        while (idx < tok_op_fn.*.?.idx_payload) : (idx += 1) {
-            try tok_op_fn.*.?.payload[idx].?(&this.instruction_sequence);
+        while (idx < tok_op_fn.idx_payload) : (idx += 1) {
+            try tok_op_fn.payload[idx].?(&this.instruction_sequence);
         }
     }
 };
@@ -455,7 +347,7 @@ const InstructionSequence = struct {
 
     const OperatorFunction = *const fn (this: *@This()) std.mem.Allocator.Error!void;
 
-    fn pushConstant(this: *@This(), token: *Token) std.mem.Allocator.Error!void {
+    fn pushConstant(this: *@This(), token: *const Token) std.mem.Allocator.Error!void {
         try this.instruction_list.append(Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = token.* } });
     }
     fn equal(this: *@This()) std.mem.Allocator.Error!void {

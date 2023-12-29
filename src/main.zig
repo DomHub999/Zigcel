@@ -40,23 +40,34 @@ pub fn main() !void {
         // std.debug.print("{}\n", .{result.u});
 
 
-        const l = [1]std.math.big.Limb{123};
-        const c = std.math.big.int.Const{ .limbs = l[0..], .positive = true };
+        // const l = [1]std.math.big.Limb{123};
+        // const c = std.math.big.int.Const{ .limbs = l[0..], .positive = true };
 
-        var s:[10]u8 = [_]u8{0}**10;
-        var lb: [10]std.math.big.Limb = undefined;
-        const result = std.math.big.int.Const.toString(c, &s, 10, std.fmt.Case.lower, &lb);
-        _ = result;
+        // var s:[10]u8 = [_]u8{0}**10;
+        // var lb: [10]std.math.big.Limb = undefined;
+        // const result = std.math.big.int.Const.toString(c, &s, 10, std.fmt.Case.lower, &lb);
+        // _ = result;
 
+        callThePrinter(print);
         
-
     }
 
-    fn returnStr() struct{ u:usize,a: u8}{
-        return .{.u = 100, .a = 4};
+    fn callThePrinter(fun:*const fn()void)void{
+        fun();
     }
 
 
-    fn numFromCharacter(chara:u8) usize {
-            return chara - '@';
-        }
+    fn print()void{
+        std.debug.print("it has worked {}", .{1});
+    }
+
+
+
+    // fn returnStr() struct{ u:usize,a: u8}{
+    //     return .{.u = 100, .a = 4};
+    // }
+
+
+    // fn numFromCharacter(chara:u8) usize {
+    //         return chara - '@';
+    //     }
