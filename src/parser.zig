@@ -1,6 +1,8 @@
 const std = @import("std");
 const lex = @import("lexer.zig");
 const tok = @import("token.zig");
+const rwap = @import("range_unwrap.zig");
+const lib = @import("libfunc.zig");
 const TokenType = tok.TokenType;
 const Token = tok.Token;
 const TokenPair = tok.TokenPair;
@@ -10,12 +12,17 @@ const Error = error{
     parser_token_type_not_supported,
     parser_no_operand_to_negate_available,
     parser_no_payload_exceeded_max,
+    parser_closing_bracket_expected,
     OutOfMemory,
+    Overflow,
+    rangeunwrapper_range_colon_divisor_na,
+    rangeunwrapper_no_row_part_in_range,
+    InvalidCharacter,
 };
 
 const NUMBER_OF_PAYLOADS: usize = 10;
 const TokenOperatorFunc = struct {
-    token: tok.Token = undefined,
+    token: tok.Token = tok.Token{},
     payload: [NUMBER_OF_PAYLOADS]?InstructionSequence.OperatorFunction = [_]?InstructionSequence.OperatorFunction{null} ** NUMBER_OF_PAYLOADS,
     idx_payload: usize = 0,
 
@@ -50,8 +57,8 @@ pub const Parser = struct {
         this.current_token = this.lexer.getNext();
     }
 
-    const LayerFunction = *const fn(this: *@This())Error!?TokenOperatorFunc;
-    fn callToUnderlLayer(this:*@This(), operator_function: InstructionSequence.OperatorFunction, lhs: *?TokenOperatorFunc, funToUnderlLayer: LayerFunction)!void{
+    const LayerFunction = *const fn (this: *@This()) Error!?TokenOperatorFunc;
+    fn callToUnderlLayer(this: *@This(), operator_function: InstructionSequence.OperatorFunction, lhs: *?TokenOperatorFunc, funToUnderlLayer: LayerFunction) !void {
         this.consumeToken();
         const result_rhs = try funToUnderlLayer(this);
         try this.triggerStackSequenceBinary(operator_function, lhs, &result_rhs);
@@ -59,7 +66,6 @@ pub const Parser = struct {
 
     //comparison =, >, <, >=, <=, <>
     fn stage06(this: *@This()) !void {
-
         var result_lhs = try this.stage05();
 
         if (this.current_token) |token_operator| {
@@ -91,7 +97,6 @@ pub const Parser = struct {
 
     //concatenation &
     fn stage05(this: *@This()) Error!?TokenOperatorFunc {
-
         var result_lhs = try this.stage04();
 
         if (this.current_token) |token_operator| {
@@ -106,7 +111,6 @@ pub const Parser = struct {
 
     //addition and subtraction +,-
     fn stage04(this: *@This()) Error!?TokenOperatorFunc {
-
         var result_lhs = try this.stage03();
 
         if (this.current_token) |token_operator| {
@@ -125,11 +129,9 @@ pub const Parser = struct {
 
     //multiplication and division *,/
     fn stage03(this: *@This()) Error!?TokenOperatorFunc {
-        
         var result_lhs = try this.stage02();
-        
+
         if (this.current_token) |token_operator| {
-        
             while (token_operator.token_type == TokenType.asterisk) {
                 try this.callToUnderlLayer(InstructionSequence.multipy, &result_lhs, Parser.stage02);
                 return null;
@@ -145,7 +147,6 @@ pub const Parser = struct {
 
     //exponentiation ^
     fn stage02(this: *@This()) Error!?TokenOperatorFunc {
-
         var result_lhs = try this.stage00();
 
         if (this.current_token) |token_operator| {
@@ -158,31 +159,8 @@ pub const Parser = struct {
         return result_lhs;
     }
 
-    // //reference operators ' ' (single space)
-    // fn stage01(this: *@This()) Error!?TokenOperatorFunc {
-    //     const result_lhs = try this.stage00();
-    //     if (this.current_token) |token_operator| {
-    //         var result_rhs: ?TokenOperatorFunc = null;
-
-    //         while (token_operator.*.token_type == TokenType.space) {
-    //             this.consumeToken();
-    //             result_rhs = try this.stage00();
-    //             // try this.triggerStackSequenceBinary(InstructionSequence.toThePowerOf, &result_lhs, &result_rhs);
-    //             return null;
-    //         }
-    //     }
-    //     return result_lhs;
-    // }
-
     //constant, string, negation, opening bracket, formula, reference, range
     fn stage00(this: *@This()) Error!?TokenOperatorFunc {
-
-        //get rid of the comma/semicolon before the operand
-        if (this.current_token) |symbol| {
-            if (symbol.token_type == TokenType.argument_deliminiter) {
-                this.consumeToken();
-            }
-        }
 
         if (this.current_token) |token_operand| {
             switch (token_operand.token_type) {
@@ -230,21 +208,87 @@ pub const Parser = struct {
                     return token_fnc;
                 },
 
-                // //OPENING BRACKET
-                // TokenType.bracket_open => {},
+                //OPENING BRACKET
+                TokenType.bracket_open => {
+                    this.consumeToken();
+                    try this.stage06();
+                    if (this.current_token) |token| {
+                        if (token.token_type == TokenType.bracket_close) {
+                            this.consumeToken();
+                        } else {
+                            return Error.parser_closing_bracket_expected;
+                        }
+                    } else {
+                        return Error.parser_closing_bracket_expected;
+                    }
 
-                // //FORMULA
-                // TokenType.formula => {
-                //     this.consumeToken(); //formula
-                //     this.consumeToken(); //opening bracket
+                    return null;
+                },
 
-                // },
+                //FORMULA
+                TokenType.formula => {
 
-                // //REFERENCE
-                // TokenType.reference => {},
+                    //temp, until the lexer delivers the formula
+                    const formula = token_operand.token;
 
-                // //RANGE
-                // TokenType.range => {},
+                    this.consumeToken(); //formula
+                    this.consumeToken(); //opening bracket
+
+                    while (this.current_token != null and this.current_token.?.token_type != TokenType.bracket_close) {
+                        if (this.current_token.?.token_type == TokenType.argument_deliminiter) {
+                            this.consumeToken();
+                        } else {
+                            try this.stage06();
+                        }
+                    }
+
+                    if (this.current_token != null and this.current_token.?.token_type == TokenType.bracket_close) {
+                        this.consumeToken(); //closing bracket
+                    } else {
+                        return Error.parser_closing_bracket_expected;
+                    }
+
+                    const dummy_number_of_arguments = 5;
+
+                    var token_fnc = TokenOperatorFunc{};
+                    token_fnc.token.token_type = TokenType.constant;
+                    token_fnc.token.valid_token = true;
+                    lib.usizeToString(dummy_number_of_arguments, &token_fnc.token.token);
+
+                    //temp, until the lexer delivers the formula
+                    if (formula[0] == 'S' and formula[1] == 'U' and formula[2] == 'M') {
+                        try token_fnc.pushBackPayload(InstructionSequence.f_sum);
+                    }
+
+                    try this.triggerStackSequenceUnary(&token_fnc);
+
+                    return null;
+                },
+
+                //REFERENCE
+                TokenType.reference => {
+                    var token_fnc = TokenOperatorFunc{ .token = token_operand.* };
+                    try token_fnc.pushBackPayload(InstructionSequence.resolveReference);
+                    this.consumeToken();
+                    return token_fnc;
+                },
+
+                //RANGE
+                TokenType.range => {
+                    const reference_list = try rwap.unwrapRange(&token_operand.token);
+
+                    for (reference_list.items) |reference| {
+                        var token_fnc = TokenOperatorFunc{};
+                        token_fnc.token.token_type = TokenType.reference;
+                        token_fnc.token.valid_token = true;
+                        @memcpy(token_fnc.token.token[0..10], reference[0..]);
+                        try token_fnc.pushBackPayload(InstructionSequence.resolveReference);
+                        try this.triggerStackSequenceUnary(&token_fnc);
+                    }
+
+                    this.consumeToken();
+                    return null;
+                },
 
                 else => {
                     return Error.parser_token_type_not_supported;
@@ -267,7 +311,6 @@ pub const Parser = struct {
     }
 
     fn triggerStackSequenceBinary(this: *@This(), operator_function: InstructionSequence.OperatorFunction, lhs: *const ?TokenOperatorFunc, rhs: *const ?TokenOperatorFunc) !void {
-
         if (lhs.*) |l| {
             try this.instruction_sequence.pushConstant(&l.token);
             try this.unloadPayload(&l);
@@ -278,7 +321,6 @@ pub const Parser = struct {
         }
 
         try operator_function(&this.instruction_sequence);
-
     }
 
     fn triggerStackSequenceUnary(this: *@This(), lhs: *const TokenOperatorFunc) !void {
@@ -318,6 +360,9 @@ const Instructions = enum {
     negate,
 
     range,
+    resolve_reference,
+
+    f_sum,
 };
 
 pub const InstructionType = enum {
@@ -396,19 +441,17 @@ const InstructionSequence = struct {
     fn negate(this: *@This()) std.mem.Allocator.Error!void {
         try this.instruction_list.append(Instruction{ .single_instruction = Instructions.negate });
     }
+    fn resolveReference(this: *@This()) std.mem.Allocator.Error!void {
+        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.resolve_reference });
+    }
+    fn f_sum(this: *@This()) std.mem.Allocator.Error!void {
+        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.f_sum });
+    }
 };
 
-test "100/50+10*20" {
-    var lexer = lex.Lexer{};
-    lexer.init();
-    defer lexer.drop();
-
-    const source = "100/50+10*20";
-    try lexer.lex(source);
-
-    var parser = Parser{};
-    parser.init(&lexer);
-    const instruction_sequence = try parser.parse();
+test "division/multiplication and addition precendence" {
+    const instruction_sequence = try testingGetInstructionSequence("100/50+10*20");
+    defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
         Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.constant } } },
@@ -429,16 +472,8 @@ test "100/50+10*20" {
 }
 
 test "strings" {
-    var lexer = lex.Lexer{};
-    lexer.init();
-    defer lexer.drop();
-
-    const source = "\"abc\"&\"def\"";
-    try lexer.lex(source);
-
-    var parser = Parser{};
-    parser.init(&lexer);
-    const instruction_sequence = try parser.parse();
+    const instruction_sequence = try testingGetInstructionSequence("\"abc\"&\"def\"");
+    defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
         Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.string } } },
@@ -453,16 +488,8 @@ test "strings" {
 }
 
 test "negate/percent/power" {
-    var lexer = lex.Lexer{};
-    lexer.init();
-    defer lexer.drop();
-
-    const source = "-10^300%";
-    try lexer.lex(source);
-
-    var parser = Parser{};
-    parser.init(&lexer);
-    const instruction_sequence = try parser.parse();
+    const instruction_sequence = try testingGetInstructionSequence("-10^300%");
+    defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
         Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.constant } } },
@@ -476,6 +503,117 @@ test "negate/percent/power" {
     @memcpy(solution[2].stack_operation.token.token[0..3], "300");
 
     try compareSolutionToinstrSeq(&solution, &instruction_sequence);
+}
+
+test "brackets" {
+    const instruction_sequence = try testingGetInstructionSequence("50*(7-3)");
+    defer instruction_sequence.instruction_list.deinit();
+
+    var solution = [_]Instruction{
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.constant } } },
+        Instruction{ .single_instruction = Instructions.subtract },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.constant } } },
+        Instruction{ .single_instruction = Instructions.multiply },
+    };
+
+    @memcpy(solution[0].stack_operation.token.token[0..1], "7");
+    @memcpy(solution[1].stack_operation.token.token[0..1], "3");
+    @memcpy(solution[3].stack_operation.token.token[0..2], "50");
+
+    try compareSolutionToinstrSeq(&solution, &instruction_sequence);
+}
+
+test "reference" {
+    const instruction_sequence = try testingGetInstructionSequence("100+F7*20");
+    defer instruction_sequence.instruction_list.deinit();
+
+    var solution = [_]Instruction{
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.reference } } },
+        Instruction{ .single_instruction = Instructions.resolve_reference },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.constant } } },
+        Instruction{ .single_instruction = Instructions.multiply },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.constant } } },
+        Instruction{ .single_instruction = Instructions.add },
+    };
+
+    @memcpy(solution[0].stack_operation.token.token[0..2], "F7");
+    @memcpy(solution[2].stack_operation.token.token[0..2], "20");
+    @memcpy(solution[4].stack_operation.token.token[0..3], "100");
+
+    try compareSolutionToinstrSeq(&solution, &instruction_sequence);
+}
+
+test "unroll range" {
+    const instruction_sequence = try testingGetInstructionSequence("A100:B102");
+    defer instruction_sequence.instruction_list.deinit();
+
+    var solution = [_]Instruction{
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.reference } } },
+        Instruction{ .single_instruction = Instructions.resolve_reference },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.reference } } },
+        Instruction{ .single_instruction = Instructions.resolve_reference },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.reference } } },
+        Instruction{ .single_instruction = Instructions.resolve_reference },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.reference } } },
+        Instruction{ .single_instruction = Instructions.resolve_reference },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.reference } } },
+        Instruction{ .single_instruction = Instructions.resolve_reference },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.reference } } },
+        Instruction{ .single_instruction = Instructions.resolve_reference },
+    };
+
+    @memcpy(solution[0].stack_operation.token.token[0..4], "A100");
+    @memcpy(solution[2].stack_operation.token.token[0..4], "A101");
+    @memcpy(solution[4].stack_operation.token.token[0..4], "A102");
+    @memcpy(solution[6].stack_operation.token.token[0..4], "B100");
+    @memcpy(solution[8].stack_operation.token.token[0..4], "B101");
+    @memcpy(solution[10].stack_operation.token.token[0..4], "B102");
+
+    try compareSolutionToinstrSeq(&solution, &instruction_sequence);
+}
+
+test "formula" {
+    const instruction_sequence = try testingGetInstructionSequence("SUM(A1:B2,R5)");
+    defer instruction_sequence.instruction_list.deinit();
+
+    var solution = [_]Instruction{
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.reference } } },
+        Instruction{ .single_instruction = Instructions.resolve_reference },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.reference } } },
+        Instruction{ .single_instruction = Instructions.resolve_reference },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.reference } } },
+        Instruction{ .single_instruction = Instructions.resolve_reference },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.reference } } },
+        Instruction{ .single_instruction = Instructions.resolve_reference },
+
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.reference } } },
+        Instruction{ .single_instruction = Instructions.resolve_reference },
+
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.constant } } },
+        Instruction{ .single_instruction = Instructions.f_sum },
+    };
+
+    @memcpy(solution[0].stack_operation.token.token[0..2], "A1");
+    @memcpy(solution[2].stack_operation.token.token[0..2], "A2");
+    @memcpy(solution[4].stack_operation.token.token[0..2], "B1");
+    @memcpy(solution[6].stack_operation.token.token[0..2], "B2");
+    @memcpy(solution[8].stack_operation.token.token[0..2], "R5");
+    @memcpy(solution[10].stack_operation.token.token[0..1], "5");
+
+    try compareSolutionToinstrSeq(&solution, &instruction_sequence);
+
+}
+
+fn testingGetInstructionSequence(source: [*:0]const u8) !InstructionSequence {
+    var lexer = lex.Lexer{};
+    lexer.init();
+    defer lexer.drop();
+    try lexer.lex(source);
+
+    var parser = Parser{};
+    parser.init(&lexer);
+    return try parser.parse();
 }
 
 fn compareSolutionToinstrSeq(solution: []Instruction, instruction_sequence: *const InstructionSequence) !void {

@@ -1,5 +1,6 @@
 const std = @import("std");
 const pow = std.math.pow;
+const lib = @import("libfunc.zig");
 
 const Error = error{
     rangeunwrapper_range_colon_divisor_na,
@@ -91,6 +92,11 @@ fn calcDelimiters(range: []const u8) !DelimPositions {
     const idx_left = std.mem.indexOfAny(u8, range[0..range_delim_idx], row_characters[0..]) orelse return Error.rangeunwrapper_no_row_part_in_range;
     const idx_right = std.mem.indexOfAny(u8, range[range_delim_idx + 1 ..], row_characters[0..]) orelse return Error.rangeunwrapper_no_row_part_in_range;
 
+    const right_row_start = range_delim_idx + idx_right + 1;
+    var right_row_end: usize = right_row_start;
+    while (right_row_end < range.len and (range[right_row_end] >= '0' and range[right_row_end] < '9')):(right_row_end += 1) {}     
+    right_row_end -= 1;
+    
     const delimiters = DelimPositions{
         .left_col_start = 0,
         .left_col_end = idx_left - 1,
@@ -98,8 +104,8 @@ fn calcDelimiters(range: []const u8) !DelimPositions {
         .left_row_end = range_delim_idx - 1,
         .right_col_start = range_delim_idx + 1,
         .right_col_end = range_delim_idx + idx_right,
-        .right_row_start = range_delim_idx + idx_right + 1,
-        .right_row_end = range.len - 1,
+        .right_row_start = right_row_start,
+        .right_row_end = right_row_end,
     };
 
     return delimiters;
@@ -131,7 +137,6 @@ fn extractRightCol(range: []const u8, range_delimiters: *const DelimPositions) s
     }
 
     return .{ .column = column, .column_len = column_len + 1 };
-    
 }
 
 fn extractRightRow(range: []const u8, range_delimiters: *const DelimPositions) !usize {
@@ -175,7 +180,7 @@ fn colFromNumber(num: usize) [3]u8 {
         if (chara_num > 0) {
             result[idx] = numToUpperChara(chara_num);
             remainder -= chara_num * divisor;
-            idx += 1;    
+            idx += 1;
         }
     }
 
@@ -184,12 +189,7 @@ fn colFromNumber(num: usize) [3]u8 {
 
 fn rowFromNumber(num: usize) [7]u8 {
     var row = [_]u8{0} ** 7;
-
-    const limb = [1]std.math.big.Limb{num};
-    const cons = std.math.big.int.Const{ .limbs = &limb, .positive = true };
-    var limb_buf: [10]std.math.big.Limb = undefined;
-    _ = std.math.big.int.Const.toString(cons, &row, 10, std.fmt.Case.lower, &limb_buf);
-
+    lib.usizeToString(num, &row);
     return row;
 }
 
@@ -267,8 +267,20 @@ test "row from number" {
 test "unwrap" {
     const result = try unwrapRange("A1:B2"[0..]);
     defer result.deinit();
-    try std.testing.expect(std.mem.eql(u8, result.items[0][0..2] , "A1"[0..]));
-    try std.testing.expect(std.mem.eql(u8, result.items[1][0..2] , "A2"[0..]));
-    try std.testing.expect(std.mem.eql(u8, result.items[2][0..2] , "B1"[0..]));
-    try std.testing.expect(std.mem.eql(u8, result.items[3][0..2] , "B2"[0..]));
+    try std.testing.expect(std.mem.eql(u8, result.items[0][0..2], "A1"[0..]));
+    try std.testing.expect(std.mem.eql(u8, result.items[1][0..2], "A2"[0..]));
+    try std.testing.expect(std.mem.eql(u8, result.items[2][0..2], "B1"[0..]));
+    try std.testing.expect(std.mem.eql(u8, result.items[3][0..2], "B2"[0..]));
+}
+
+test "unwrap 2" {
+    const result = try unwrapRange("A100:B102"[0..]);
+    defer result.deinit();
+
+    try std.testing.expect(std.mem.eql(u8, result.items[0][0..4], "A100"[0..]));
+    try std.testing.expect(std.mem.eql(u8, result.items[1][0..4], "A101"[0..]));
+    try std.testing.expect(std.mem.eql(u8, result.items[2][0..4], "A102"[0..]));
+    try std.testing.expect(std.mem.eql(u8, result.items[3][0..4], "B100"[0..]));
+    try std.testing.expect(std.mem.eql(u8, result.items[4][0..4], "B101"[0..]));
+    try std.testing.expect(std.mem.eql(u8, result.items[5][0..4], "B102"[0..]));
 }
