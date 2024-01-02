@@ -1,4 +1,4 @@
-//todo: extract token extraction
+//todo: extract token extraction --> done
 //parser: erxtract the instruction sequence
 //token: tagged union for actual values: constant (float64), formula enum (separate formula file), pointer for strings, reference number
 //token: extraction functions for actual values
@@ -11,6 +11,8 @@
 //token: make character in in tokens heap memory -> infinite chara length
 //token: write transition functions (string to float, string to formula, string to reference, string to string pointer)
 //parser: get rid of members, pass the token list around
+//enums capital letters
+//check unwraps of optionals
 
 const std = @import("std");
 const lex = @import("lexer.zig");
