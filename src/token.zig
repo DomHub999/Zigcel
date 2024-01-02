@@ -40,7 +40,7 @@ pub const TokenType = enum {
 
 pub const Token = struct {
     current_chara_num: usize = 0,
-    token: [MAX_TOKEN_SIZE]u8 = [_]u8{0} ** MAX_TOKEN_SIZE,
+    token: [MAX_TOKEN_SIZE]u8 = [_]u8{0} ** MAX_TOKEN_SIZE, //for debugging purposes
     token_type: TokenType = undefined,
     valid_token: bool = true,
 
