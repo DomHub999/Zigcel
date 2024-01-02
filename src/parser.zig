@@ -1,11 +1,14 @@
 const std = @import("std");
-const lex = @import("lexer.zig");
+const lexr = @import("lexer.zig");
 const tok = @import("token.zig");
 const rwap = @import("range_unwrap.zig");
 const lib = @import("libfunc.zig");
 const TokenType = tok.TokenType;
 const Token = tok.Token;
 const TokenPair = tok.TokenPair;
+const TokenListIterator = tok.TokenListIterator;
+const lex = lexr.lex;
+const makeTokenListIterator = tok.makeTokenListIterator;
 
 const Error = error{
     parser_expected_operand_is_missing,
@@ -37,14 +40,14 @@ const TokenOperatorFunc = struct {
 };
 
 pub const Parser = struct {
-    lexer: *lex.Lexer = undefined,
+    token_list_iterator: *TokenListIterator = undefined,
     current_token: ?*Token = null,
     instruction_sequence: InstructionSequence = undefined,
 
-    pub fn init(this: *@This(), lexer: *lex.Lexer) void {
+    pub fn init(this: *@This(), token_list_iterator: *TokenListIterator) void {
         this.instruction_sequence = InstructionSequence{};
         this.instruction_sequence.init();
-        this.lexer = lexer;
+        this.token_list_iterator = token_list_iterator;
     }
 
     pub fn parse(this: *@This()) !InstructionSequence {
@@ -55,7 +58,7 @@ pub const Parser = struct {
     }
 
     fn consumeToken(this: *@This()) void {
-        this.current_token = this.lexer.getNext();
+        this.current_token = this.token_list_iterator.getNext();
     }
 
     const LayerFunction = *const fn (this: *@This(), arg_count: *usize) Error!?TokenOperatorFunc;
@@ -752,13 +755,13 @@ test "division 3" {
 }
 
 fn testingGetInstructionSequence(source: [*:0]const u8) !InstructionSequence {
-    var lexer = lex.Lexer{};
-    lexer.init();
-    defer lexer.drop();
-    try lexer.lex(source);
+    
+    const token_list = try lex(source);
+    var token_list_iterator = makeTokenListIterator(token_list);
+    defer token_list_iterator.drop();
 
     var parser = Parser{};
-    parser.init(&lexer);
+    parser.init(&token_list_iterator);
     return try parser.parse();
 }
 
@@ -785,7 +788,7 @@ fn printInstructionSequence(instruction_sequence: *const InstructionSequence) vo
                 std.debug.print("{s}\n", .{@tagName(value.single_instruction)});
             },
             InstructionType.stack_operation => {
-                std.debug.print("{s} {s}\n", .{ @tagName(value.stack_operation.instruction), lex.Lexer.extractToken(&value.stack_operation.token.token) });
+                std.debug.print("{s} {s}\n", .{ @tagName(value.stack_operation.instruction), lexr.Lexer.extractToken(&value.stack_operation.token.token) });
             },
         }
     }

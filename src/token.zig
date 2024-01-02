@@ -1,10 +1,14 @@
+const std = @import("std");
+
 const Errors = error{
     token_exceeds_max_token_size,
 };
 
 pub const MAX_TOKEN_SIZE: usize = 20;
 
-pub const ARGUMENT_DELIMINITER:u8 = ',';
+pub const token_list_type = std.ArrayList(Token);
+
+pub const ARGUMENT_DELIMINITER: u8 = ',';
 
 pub const TokenType = enum {
     plus,
@@ -62,3 +66,55 @@ pub const Token = struct {
     }
 };
 
+pub fn extractToken(token: *const [MAX_TOKEN_SIZE]u8) []const u8 {
+    var index: usize = 0;
+
+    while (token.*[index] != 0) : (index += 1) {}
+    return token.*[0..index];
+}
+
+pub const TokenListIterator = struct {
+    token_list: token_list_type,
+    current_token: usize = 0,
+
+    pub fn drop(this: *@This()) void {
+        this.token_list.deinit();
+    }
+
+    pub fn hasNext(this: *@This()) bool {
+        this.skipToNextValidToken();
+        if (this.current_token < this.token_list.items.len) {
+            return true;
+        }
+        return false;
+    }
+
+    pub fn getNext(this: *@This()) ?*Token {
+        if (!this.hasNext()) {
+            return null;
+        }
+
+        const token = &this.token_list.items[this.current_token];
+        this.current_token += 1;
+        return token;
+    }
+
+    pub fn peek(this: *@This()) ?*Token {
+        if (!this.hasNext()) {
+            return null;
+        }
+
+        const token = &this.token_list.items[this.current_token];
+        return token;
+    }
+
+    fn skipToNextValidToken(this: *@This()) void {
+        while (this.current_token < this.token_list.items.len and this.token_list.items[this.current_token].valid_token == false) {
+            this.current_token += 1;
+        }
+    }
+};
+
+pub fn makeTokenListIterator(token_list: token_list_type)TokenListIterator {
+    return TokenListIterator{ .token_list = token_list };
+}
