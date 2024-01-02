@@ -1,7 +1,8 @@
 //todo: extract token extraction --> done
-//lexer: get rid of the member variables, return an arraylist -> done
+//lexer: get rid of the member variables, return an arraylist --> done
+//parser: erxtract the instruction sequence --> done
+//resolve all library accesses with an alias --> done
 
-//parser: erxtract the instruction sequence
 //token: tagged union for actual values: constant (float64), formula enum (separate formula file), pointer for strings, reference number
 //token: extraction functions for actual values
 //instruction sequence: get rid of function pointers for instructinon genaration
@@ -14,6 +15,7 @@
 //parser: get rid of members, pass the token list around
 //enums capital letters
 //check unwraps of optionals
+
 
 const std = @import("std");
 const lex = @import("lexer.zig");

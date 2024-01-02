@@ -1,14 +1,22 @@
 const std = @import("std");
-const lexr = @import("lexer.zig");
-const tok = @import("token.zig");
-const rwap = @import("range_unwrap.zig");
-const lib = @import("libfunc.zig");
-const TokenType = tok.TokenType;
-const Token = tok.Token;
-const TokenPair = tok.TokenPair;
-const TokenListIterator = tok.TokenListIterator;
-const lex = lexr.lex;
-const makeTokenListIterator = tok.makeTokenListIterator;
+
+const unwrapRange = @import("range_unwrap.zig").unwrapRange;
+
+const usizeToString = @import("libfunc.zig").usizeToString;
+
+const TokenType = @import("token.zig").TokenType;
+const Token = @import("token.zig").Token;
+const TokenPair = @import("token.zig").TokenPair;
+const TokenListIterator = @import("token.zig").TokenListIterator;
+const makeTokenListIterator = @import("token.zig").makeTokenListIterator;
+
+const lex = @import("lexer.zig").lex;
+const extractToken = @import("lexer.zig").extractToken;
+
+const InstructionSequence = @import("instruction_sequence.zig").InstructionSequence;
+const Instruction = @import("instruction_sequence.zig").Instruction;
+const Instructions = @import("instruction_sequence.zig").Instructions;
+const InstructionType = @import("instruction_sequence.zig").InstructionType;
 
 const Error = error{
     parser_expected_operand_is_missing,
@@ -25,7 +33,7 @@ const Error = error{
 
 const NUMBER_OF_PAYLOADS: usize = 10;
 const TokenOperatorFunc = struct {
-    token: tok.Token = tok.Token{},
+    token: Token = Token{},
     payload: [NUMBER_OF_PAYLOADS]?InstructionSequence.OperatorFunction = [_]?InstructionSequence.OperatorFunction{null} ** NUMBER_OF_PAYLOADS,
     idx_payload: usize = 0,
 
@@ -257,7 +265,7 @@ pub const Parser = struct {
                     var token_fnc = TokenOperatorFunc{};
                     token_fnc.token.token_type = TokenType.constant;
                     token_fnc.token.valid_token = true;
-                    lib.usizeToString(this_arg_count, &token_fnc.token.token);
+                    usizeToString(this_arg_count, &token_fnc.token.token);
 
                     //temp, until the lexer delivers the formula
                     if (formula[0] == 'S' and formula[1] == 'U' and formula[2] == 'M') {
@@ -281,7 +289,7 @@ pub const Parser = struct {
 
                 //RANGE
                 TokenType.range => {
-                    const reference_list = try rwap.unwrapRange(&token_operand.token);
+                    const reference_list = try unwrapRange(&token_operand.token);
 
                     for (reference_list.items) |reference| {
                         var token_fnc = TokenOperatorFunc{};
@@ -343,118 +351,7 @@ pub const Parser = struct {
     }
 };
 
-const Instructions = enum {
-    equal,
-    greaterThan,
-    lessThan,
-    greaterEqualThan,
-    lessEqualThan,
-    notEqualTo,
 
-    add,
-    subtract,
-    multiply,
-    divide,
-
-    push,
-
-    concat_strings,
-
-    to_the_power_of,
-
-    percent_of,
-
-    negate,
-
-    range,
-    resolve_reference,
-
-    f_sum,
-};
-
-pub const InstructionType = enum {
-    single_instruction,
-    stack_operation,
-};
-
-pub const Instruction = union(InstructionType) {
-    single_instruction: Instructions,
-    stack_operation: struct {
-        instruction: Instructions,
-        token: Token,
-    },
-};
-
-const InstructionSequence = struct {
-    const array_list_type = std.ArrayList(Instruction);
-    instruction_list: array_list_type = undefined,
-
-    pub fn init(this: *@This()) void {
-        this.instruction_list = array_list_type.init(std.heap.page_allocator);
-    }
-
-    pub fn drop(this: *@This()) void {
-        this.instruction_list.deinit();
-    }
-
-    const OperatorFunction = *const fn (this: *@This()) std.mem.Allocator.Error!void;
-
-    fn pushConstant(this: *@This(), token: *const Token) std.mem.Allocator.Error!void {
-        try this.instruction_list.append(Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = token.* } });
-    }
-    fn equal(this: *@This()) std.mem.Allocator.Error!void {
-        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.equal });
-    }
-    fn greaterThan(this: *@This()) std.mem.Allocator.Error!void {
-        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.greaterThan });
-    }
-    fn lessThan(this: *@This()) std.mem.Allocator.Error!void {
-        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.lessThan });
-    }
-    fn greaterEqualThan(this: *@This()) std.mem.Allocator.Error!void {
-        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.greaterEqualThan });
-    }
-    fn lessEqualThan(this: *@This()) std.mem.Allocator.Error!void {
-        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.lessEqualThan });
-    }
-    fn notEqualTo(this: *@This()) std.mem.Allocator.Error!void {
-        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.notEqualTo });
-    }
-
-    fn concatenate(this: *@This()) std.mem.Allocator.Error!void {
-        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.concat_strings });
-    }
-
-    fn add(this: *@This()) std.mem.Allocator.Error!void {
-        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.add });
-    }
-    fn subtract(this: *@This()) std.mem.Allocator.Error!void {
-        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.subtract });
-    }
-
-    fn multipy(this: *@This()) std.mem.Allocator.Error!void {
-        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.multiply });
-    }
-    fn divide(this: *@This()) std.mem.Allocator.Error!void {
-        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.divide });
-    }
-
-    fn toThePowerOf(this: *@This()) std.mem.Allocator.Error!void {
-        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.to_the_power_of });
-    }
-    fn percentOf(this: *@This()) std.mem.Allocator.Error!void {
-        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.percent_of });
-    }
-    fn negate(this: *@This()) std.mem.Allocator.Error!void {
-        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.negate });
-    }
-    fn resolveReference(this: *@This()) std.mem.Allocator.Error!void {
-        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.resolve_reference });
-    }
-    fn f_sum(this: *@This()) std.mem.Allocator.Error!void {
-        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.f_sum });
-    }
-};
 
 test "division/multiplication and addition precendence" {
     const instruction_sequence = try testingGetInstructionSequence("100/50+10*20");
@@ -755,7 +652,7 @@ test "division 3" {
 }
 
 fn testingGetInstructionSequence(source: [*:0]const u8) !InstructionSequence {
-    
+
     const token_list = try lex(source);
     var token_list_iterator = makeTokenListIterator(token_list);
     defer token_list_iterator.drop();
@@ -788,7 +685,7 @@ fn printInstructionSequence(instruction_sequence: *const InstructionSequence) vo
                 std.debug.print("{s}\n", .{@tagName(value.single_instruction)});
             },
             InstructionType.stack_operation => {
-                std.debug.print("{s} {s}\n", .{ @tagName(value.stack_operation.instruction), lexr.Lexer.extractToken(&value.stack_operation.token.token) });
+                std.debug.print("{s} {s}\n", .{ @tagName(value.stack_operation.instruction), extractToken(&value.stack_operation.token.token) });
             },
         }
     }

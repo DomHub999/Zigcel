@@ -1,6 +1,6 @@
-const tok = @import("token.zig");
-const Token = tok.Token;
-const TokenType = tok.TokenType;
+const Token = @import("token.zig").Token;
+const TokenType = @import("token.zig").TokenType;
+const ARGUMENT_DELIMINITER = @import("token.zig").ARGUMENT_DELIMINITER;
 
 const Errors = error{
     tokenizer_character_not_defined,
@@ -119,7 +119,7 @@ fn makeRuleTable() [255]Rule {
     tmp_rule_table['='] = Rule{ .single_character = .{ .token_type = TokenType.equal_sign } };
     tmp_rule_table['&'] = Rule{ .single_character = .{ .token_type = TokenType.ampersand } };
     tmp_rule_table[':'] = Rule{ .single_character = .{ .token_type = TokenType.colon } };
-    tmp_rule_table[tok.ARGUMENT_DELIMINITER] = Rule{ .single_character = .{ .token_type = TokenType.argument_deliminiter } };
+    tmp_rule_table[ARGUMENT_DELIMINITER] = Rule{ .single_character = .{ .token_type = TokenType.argument_deliminiter } };
 
     tmp_rule_table['>'] = Rule{ .multiple_characters = .{ .subs_characters = &greater_than_r, .token_type_det = greater_than_f } };
     tmp_rule_table['<'] = Rule{ .multiple_characters = .{ .subs_characters = &smaller_than_r, .token_type_det = smaller_than_f } };

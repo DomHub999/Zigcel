@@ -1,13 +1,11 @@
 const std = @import("std");
-const tok = @import("token.zig");
-const tokz = @import("tokenizer.zig");
-const Token = tok.Token;
-const getNextToken = tokz.getNextToken;
-const token_list_type = tok.token_list_type;
-const MAX_TOKEN_SIZE = tok.MAX_TOKEN_SIZE;
-const TokenType = tok.TokenType;
-const extractToken = tok.extractToken;
-const makeTokenListIterator = tok.makeTokenListIterator;
+
+const token_list_type = @import("token.zig").token_list_type;
+const TokenType = @import("token.zig").TokenType;
+const extractToken = @import("token.zig").extractToken;
+const makeTokenListIterator = @import("token.zig").makeTokenListIterator;
+
+const getNextToken = @import("tokenizer.zig").getNextToken;
 
 const Errors = error{
     lexer_source_size_equals_null,
