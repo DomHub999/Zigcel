@@ -1,6 +1,6 @@
-const Token = @import("token.zig").Token;
-const TokenType = @import("token.zig").TokenType;
-const ARGUMENT_DELIMINITER = @import("token.zig").ARGUMENT_DELIMINITER;
+const Token = @import("lexer_token.zig").Token;
+const TokenType = @import("lexer_token.zig").TokenType;
+const ARGUMENT_DELIMINITER = @import("lexer_token.zig").ARGUMENT_DELIMINITER;
 
 const Errors = error{
     tokenizer_character_not_defined,

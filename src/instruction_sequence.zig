@@ -1,6 +1,6 @@
 const std = @import("std");
-const Token = @import("token.zig").Token;
-const TokenOperatorFunc = @import("parser.zig").TokenOperatorFunc;
+const Token = @import("lexer_token.zig").Token;
+const TokenOperatorFunc = @import("parser_token.zig").TokenOperatorFunc;
 
 pub const Instructions = enum {
     equal,
@@ -66,7 +66,7 @@ pub const InstructionSequence = struct {
             try this.pushConstant(&r.token);
             try this.unloadPayload(&r);
         }
-        
+
         try operator_function(this);
     }
 
@@ -84,9 +84,14 @@ pub const InstructionSequence = struct {
 
     pub const OperatorFunction = *const fn (this: *@This()) std.mem.Allocator.Error!void;
 
+
+
     pub fn pushConstant(this: *@This(), token: *const Token) std.mem.Allocator.Error!void {
         try this.instruction_list.append(Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = token.* } });
     }
+
+
+
     pub fn equal(this: *@This()) std.mem.Allocator.Error!void {
         try this.instruction_list.append(Instruction{ .single_instruction = Instructions.equal });
     }

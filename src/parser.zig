@@ -4,11 +4,11 @@ const unwrapRange = @import("range_unwrap.zig").unwrapRange;
 
 const usizeToString = @import("libfunc.zig").usizeToString;
 
-const TokenType = @import("token.zig").TokenType;
-const Token = @import("token.zig").Token;
-const TokenPair = @import("token.zig").TokenPair;
-const TokenListIterator = @import("token.zig").TokenListIterator;
-const makeTokenListIterator = @import("token.zig").makeTokenListIterator;
+const TokenType = @import("lexer_token.zig").TokenType;
+const Token = @import("lexer_token.zig").Token;
+const TokenPair = @import("lexer_token.zig").TokenPair;
+const TokenListIterator = @import("lexer_token.zig").TokenListIterator;
+const makeTokenListIterator = @import("lexer_token.zig").makeTokenListIterator;
 
 const lex = @import("lexer.zig").lex;
 const extractToken = @import("lexer.zig").extractToken;
@@ -18,34 +18,22 @@ const Instruction = @import("instruction_sequence.zig").Instruction;
 const Instructions = @import("instruction_sequence.zig").Instructions;
 const InstructionType = @import("instruction_sequence.zig").InstructionType;
 
+const TokenOperatorFunc = @import("parser_token.zig").TokenOperatorFunc;
+
 const Error = error{
     parser_expected_operand_is_missing,
     parser_token_type_not_supported,
     parser_no_operand_to_negate_available,
-    parser_no_payload_exceeded_max,
     parser_closing_bracket_expected,
     OutOfMemory,
     Overflow,
     rangeunwrapper_range_colon_divisor_na,
     rangeunwrapper_no_row_part_in_range,
     InvalidCharacter,
+
+    parser_token_no_payload_exceeded_max,
 };
 
-const NUMBER_OF_PAYLOADS: usize = 10;
-pub const TokenOperatorFunc = struct {
-    token: Token = Token{},
-    payload: [NUMBER_OF_PAYLOADS]?InstructionSequence.OperatorFunction = [_]?InstructionSequence.OperatorFunction{null} ** NUMBER_OF_PAYLOADS,
-    idx_payload: usize = 0,
-
-    fn pushBackPayload(this: *@This(), func: InstructionSequence.OperatorFunction) !void {
-        if (this.idx_payload >= NUMBER_OF_PAYLOADS) {
-            return Error.parser_no_payload_exceeded_max;
-        }
-
-        this.payload[this.idx_payload] = func;
-        this.idx_payload += 1;
-    }
-};
 
 pub const Parser = struct {
     token_list_iterator: *TokenListIterator = undefined,
