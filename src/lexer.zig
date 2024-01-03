@@ -55,7 +55,6 @@ test "30*20" {
 }
 
 test "(50 * 40 )-20" {
-
     const source = "(50 * 40 )-20";
 
     const token_list = try lex(source);

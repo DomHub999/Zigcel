@@ -32,7 +32,7 @@ const Error = error{
 };
 
 const NUMBER_OF_PAYLOADS: usize = 10;
-const TokenOperatorFunc = struct {
+pub const TokenOperatorFunc = struct {
     token: Token = Token{},
     payload: [NUMBER_OF_PAYLOADS]?InstructionSequence.OperatorFunction = [_]?InstructionSequence.OperatorFunction{null} ** NUMBER_OF_PAYLOADS,
     idx_payload: usize = 0,
@@ -73,7 +73,7 @@ pub const Parser = struct {
     fn callToUnderlLayer(this: *@This(), operator_function: InstructionSequence.OperatorFunction, lhs: *?TokenOperatorFunc, funToUnderlLayer: LayerFunction, arg_count: *usize) !void {
         this.consumeToken();
         const result_rhs = try funToUnderlLayer(this, arg_count);
-        try this.triggerStackSequenceBinary(operator_function, lhs, &result_rhs);
+        try this.instruction_sequence.triggerStackSequenceBinary(operator_function, lhs, &result_rhs);
     }
 
     //comparison =, >, <, >=, <=, <>
@@ -103,7 +103,7 @@ pub const Parser = struct {
 
         //necessary for a single number, negated numer etc.
         if (result_lhs) |lhs| {
-            try this.triggerStackSequenceUnary(&lhs);
+            try this.instruction_sequence.triggerStackSequenceUnary(&lhs);
         }
     }
 
@@ -272,7 +272,7 @@ pub const Parser = struct {
                         try token_fnc.pushBackPayload(InstructionSequence.f_sum);
                     }
 
-                    try this.triggerStackSequenceUnary(&token_fnc);
+                    try this.instruction_sequence.triggerStackSequenceUnary(&token_fnc);
 
                     arg_count.* += 1;
                     return null;
@@ -297,7 +297,7 @@ pub const Parser = struct {
                         token_fnc.token.valid_token = true;
                         @memcpy(token_fnc.token.token[0..10], reference[0..]);
                         try token_fnc.pushBackPayload(InstructionSequence.resolveReference);
-                        try this.triggerStackSequenceUnary(&token_fnc);
+                        try this.instruction_sequence.triggerStackSequenceUnary(&token_fnc);
                         arg_count.* += 1;
                     }
 
@@ -325,30 +325,6 @@ pub const Parser = struct {
         }
     }
 
-    fn triggerStackSequenceBinary(this: *@This(), operator_function: InstructionSequence.OperatorFunction, lhs: *const ?TokenOperatorFunc, rhs: *const ?TokenOperatorFunc) !void {
-        if (lhs.*) |l| {
-            try this.instruction_sequence.pushConstant(&l.token);
-            try this.unloadPayload(&l);
-        }
-        if (rhs.*) |r| {
-            try this.instruction_sequence.pushConstant(&r.token);
-            try this.unloadPayload(&r);
-        }
-
-        try operator_function(&this.instruction_sequence);
-    }
-
-    fn triggerStackSequenceUnary(this: *@This(), lhs: *const TokenOperatorFunc) !void {
-        try this.instruction_sequence.pushConstant(&lhs.token);
-        try this.unloadPayload(lhs);
-    }
-
-    fn unloadPayload(this: *@This(), tok_op_fn: *const TokenOperatorFunc) !void {
-        var idx: usize = 0;
-        while (idx < tok_op_fn.idx_payload) : (idx += 1) {
-            try tok_op_fn.payload[idx].?(&this.instruction_sequence);
-        }
-    }
 };
 
 
@@ -631,6 +607,7 @@ test "division 2" {
     @memcpy(solution[1].stack_operation.token.token[0..1], "5");
 
     try compareSolutionToinstrSeq(&solution, &instruction_sequence);
+
 }
 
 test "division 3" {

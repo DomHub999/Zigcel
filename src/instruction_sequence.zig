@@ -1,5 +1,6 @@
 const std = @import("std");
 const Token = @import("token.zig").Token;
+const TokenOperatorFunc = @import("parser.zig").TokenOperatorFunc;
 
 pub const Instructions = enum {
     equal,
@@ -53,6 +54,32 @@ pub const InstructionSequence = struct {
 
     pub fn drop(this: *@This()) void {
         this.instruction_list.deinit();
+    }
+
+    pub fn triggerStackSequenceBinary(this: *@This(), operator_function: InstructionSequence.OperatorFunction, lhs: *const ?TokenOperatorFunc, rhs: *const ?TokenOperatorFunc) !void {
+        if (lhs.*) |l| {
+            try this.pushConstant(&l.token);
+            try this.unloadPayload(&l);
+        }
+
+        if (rhs.*) |r| {
+            try this.pushConstant(&r.token);
+            try this.unloadPayload(&r);
+        }
+        
+        try operator_function(this);
+    }
+
+    pub fn triggerStackSequenceUnary(this: *@This(), lhs: *const TokenOperatorFunc) !void {
+        try this.pushConstant(&lhs.token);
+        try this.unloadPayload(lhs);
+    }
+
+    pub fn unloadPayload(this: *@This(), tok_op_fn: *const TokenOperatorFunc) !void {
+        var idx: usize = 0;
+        while (idx < tok_op_fn.idx_payload) : (idx += 1) {
+            try tok_op_fn.payload[idx].?(this);
+        }
     }
 
     pub const OperatorFunction = *const fn (this: *@This()) std.mem.Allocator.Error!void;
