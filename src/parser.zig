@@ -8,6 +8,7 @@ const TokenType = @import("lexer_token.zig").TokenType;
 const LexerToken = @import("lexer_token.zig").LexerToken;
 const TokenPair = @import("lexer_token.zig").TokenPair;
 const TokenListIterator = @import("lexer_token.zig").TokenListIterator;
+const token_list_type = @import("lexer_token.zig").token_list_type;
 const makeTokenListIterator = @import("lexer_token.zig").makeTokenListIterator;
 
 const lex = @import("lexer.zig").lex;
@@ -57,10 +58,10 @@ pub const Parser = struct {
     }
 
     const LayerFunction = *const fn (this: *@This(), arg_count: *usize) Error!?ParserToken;
-    fn callToUnderlLayer(this: *@This(), operator_function: InstructionSequence.OperatorFunction, lhs: *?ParserToken, funToUnderlLayer: LayerFunction, arg_count: *usize) !void {
+    fn callToUnderlLayer(this: *@This(), instruction: Instructions, lhs: *?ParserToken, funToUnderlLayer: LayerFunction, arg_count: *usize) !void {
         this.consumeToken();
         const result_rhs = try funToUnderlLayer(this, arg_count);
-        try this.instruction_sequence.triggerStackSequenceBinary(operator_function, lhs, &result_rhs);
+        try this.instruction_sequence.triggerStackSequenceBinary(instruction, lhs, &result_rhs);
     }
 
     //comparison =, >, <, >=, <=, <>
@@ -69,22 +70,22 @@ pub const Parser = struct {
 
         if (this.current_token) |token_operator| {
             while (token_operator.token_type == TokenType.equal_sign) {
-                try this.callToUnderlLayer(InstructionSequence.equal, &result_lhs, Parser.stage05, arg_count);
+                try this.callToUnderlLayer(Instructions.equal, &result_lhs, Parser.stage05, arg_count);
             }
             while (token_operator.token_type == TokenType.greater_than_sign) {
-                try this.callToUnderlLayer(InstructionSequence.greaterThan, &result_lhs, Parser.stage05, arg_count);
+                try this.callToUnderlLayer(Instructions.greaterThan, &result_lhs, Parser.stage05, arg_count);
             }
             while (token_operator.token_type == TokenType.less_than_sign) {
-                try this.callToUnderlLayer(InstructionSequence.lessThan, &result_lhs, Parser.stage05, arg_count);
+                try this.callToUnderlLayer(Instructions.lessThan, &result_lhs, Parser.stage05, arg_count);
             }
             while (token_operator.token_type == TokenType.greater_equal_to_sign) {
-                try this.callToUnderlLayer(InstructionSequence.greaterEqualThan, &result_lhs, Parser.stage05, arg_count);
+                try this.callToUnderlLayer(Instructions.greaterEqualThan, &result_lhs, Parser.stage05, arg_count);
             }
             while (token_operator.token_type == TokenType.less_equal_to_sign) {
-                try this.callToUnderlLayer(InstructionSequence.lessEqualThan, &result_lhs, Parser.stage05, arg_count);
+                try this.callToUnderlLayer(Instructions.lessEqualThan, &result_lhs, Parser.stage05, arg_count);
             }
             while (token_operator.token_type == TokenType.not_equal_to_sign) {
-                try this.callToUnderlLayer(InstructionSequence.notEqualTo, &result_lhs, Parser.stage05, arg_count);
+                try this.callToUnderlLayer(Instructions.notEqualTo, &result_lhs, Parser.stage05, arg_count);
             }
         }
 
@@ -100,7 +101,7 @@ pub const Parser = struct {
 
         if (this.current_token) |token_operator| {
             while (token_operator.token_type == TokenType.ampersand) {
-                try this.callToUnderlLayer(InstructionSequence.concatenate, &result_lhs, Parser.stage04, arg_count);
+                try this.callToUnderlLayer(Instructions.concat_strings, &result_lhs, Parser.stage04, arg_count);
                 return null;
             }
         }
@@ -114,11 +115,11 @@ pub const Parser = struct {
 
         if (this.current_token) |token_operator| {
             while (token_operator.token_type == TokenType.plus) {
-                try this.callToUnderlLayer(InstructionSequence.add, &result_lhs, Parser.stage03, arg_count);
+                try this.callToUnderlLayer(Instructions.add, &result_lhs, Parser.stage03, arg_count);
                 return null;
             }
             while (token_operator.token_type == TokenType.minus) {
-                try this.callToUnderlLayer(InstructionSequence.subtract, &result_lhs, Parser.stage03, arg_count);
+                try this.callToUnderlLayer(Instructions.subtract, &result_lhs, Parser.stage03, arg_count);
                 return null;
             }
         }
@@ -132,11 +133,11 @@ pub const Parser = struct {
 
         if (this.current_token) |token_operator| {
             while (token_operator.token_type == TokenType.asterisk) {
-                try this.callToUnderlLayer(InstructionSequence.multipy, &result_lhs, Parser.stage02, arg_count);
+                try this.callToUnderlLayer(Instructions.multiply, &result_lhs, Parser.stage02, arg_count);
                 return null;
             }
             while (token_operator.token_type == TokenType.forward_slash) {
-                try this.callToUnderlLayer(InstructionSequence.divide, &result_lhs, Parser.stage02, arg_count);
+                try this.callToUnderlLayer(Instructions.divide, &result_lhs, Parser.stage02, arg_count);
                 return null;
             }
         }
@@ -150,7 +151,7 @@ pub const Parser = struct {
 
         if (this.current_token) |token_operator| {
             while (token_operator.token_type == TokenType.caret) {
-                try this.callToUnderlLayer(InstructionSequence.toThePowerOf, &result_lhs, Parser.stage00, arg_count);
+                try this.callToUnderlLayer(Instructions.to_the_power_of, &result_lhs, Parser.stage00, arg_count);
                 return null;
             }
         }
@@ -165,29 +166,29 @@ pub const Parser = struct {
 
                 //CONSTANT
                 TokenType.constant => {
-                    var token_fnc = ParserToken{ .token = token_operand.* };
+                    var parser_token = ParserToken{ .token = token_operand.* };
                     this.consumeToken();
-                    try this.dealWithPercentSign(&token_fnc);
+                    try this.dealWithPercentSign(&parser_token);
                     arg_count.* += 1;
-                    return token_fnc;
+                    return parser_token;
                 },
 
                 //STRING
                 TokenType.string => {
-                    const token_fnc = ParserToken{ .token = token_operand.* };
+                    const parser_token = ParserToken{ .token = token_operand.* };
                     this.consumeToken();
-                    return token_fnc;
+                    return parser_token;
                 },
 
                 //NEGATION
                 TokenType.minus => {
-                    var token_fnc = ParserToken{};
-                    try token_fnc.pushBackPayload(InstructionSequence.negate);
+                    var parser_token = ParserToken{};
+                    try parser_token.pushBackPayload(Instructions.negate);
                     this.consumeToken();
 
                     while (this.current_token) |token_unwrapped| {
                         if (token_unwrapped.token_type == TokenType.minus) {
-                            try token_fnc.pushBackPayload(InstructionSequence.negate);
+                            try parser_token.pushBackPayload(Instructions.negate);
                         } else {
                             break;
                         }
@@ -195,16 +196,16 @@ pub const Parser = struct {
                     }
 
                     if (this.current_token) |operand_negate| {
-                        token_fnc.token = operand_negate.*;
+                        parser_token.token = operand_negate.*;
 
                         this.consumeToken();
                     } else {
                         return Error.parser_no_operand_to_negate_available;
                     }
 
-                    try this.dealWithPercentSign(&token_fnc);
+                    try this.dealWithPercentSign(&parser_token);
 
-                    return token_fnc;
+                    return parser_token;
                 },
 
                 //OPENING BRACKET
@@ -249,17 +250,17 @@ pub const Parser = struct {
                         return Error.parser_closing_bracket_expected;
                     }
 
-                    var token_fnc = ParserToken{};
-                    token_fnc.token.token_type = TokenType.constant;
-                    token_fnc.token.valid_token = true;
-                    usizeToString(this_arg_count, &token_fnc.token.token);
+                    var parser_token = ParserToken{};
+                    parser_token.token.token_type = TokenType.constant;
+                    parser_token.token.valid_token = true;
+                    usizeToString(this_arg_count, &parser_token.token.token);
 
                     //temp, until the lexer delivers the formula
                     if (formula[0] == 'S' and formula[1] == 'U' and formula[2] == 'M') {
-                        try token_fnc.pushBackPayload(InstructionSequence.f_sum);
+                        try parser_token.pushBackPayload(Instructions.f_sum);
                     }
 
-                    try this.instruction_sequence.triggerStackSequenceUnary(&token_fnc);
+                    try this.instruction_sequence.triggerStackSequenceUnary(&parser_token);
 
                     arg_count.* += 1;
                     return null;
@@ -268,7 +269,7 @@ pub const Parser = struct {
                 //REFERENCE
                 TokenType.reference => {
                     var token_fnc = ParserToken{ .token = token_operand.* };
-                    try token_fnc.pushBackPayload(InstructionSequence.resolveReference);
+                    try token_fnc.pushBackPayload(Instructions.resolve_reference);
                     this.consumeToken();
                     arg_count.* += 1;
                     return token_fnc;
@@ -283,7 +284,7 @@ pub const Parser = struct {
                         token_fnc.token.token_type = TokenType.reference;
                         token_fnc.token.valid_token = true;
                         @memcpy(token_fnc.token.token[0..10], reference[0..]);
-                        try token_fnc.pushBackPayload(InstructionSequence.resolveReference);
+                        try token_fnc.pushBackPayload(Instructions.resolve_reference);
                         try this.instruction_sequence.triggerStackSequenceUnary(&token_fnc);
                         arg_count.* += 1;
                     }
@@ -304,7 +305,7 @@ pub const Parser = struct {
     fn dealWithPercentSign(this: *@This(), token_fnc: *ParserToken) !void {
         while (this.current_token) |token_unwrapped| {
             if (token_unwrapped.token_type == TokenType.percent_sign) {
-                try token_fnc.pushBackPayload(InstructionSequence.percentOf);
+                try token_fnc.pushBackPayload(Instructions.percent_of);
                 this.consumeToken();
             } else {
                 break;

@@ -2,10 +2,10 @@
 //lexer: get rid of the member variables, return an arraylist --> done
 //parser: erxtract the instruction sequence --> done
 //resolve all library accesses with an alias --> done
-
+//instruction sequence: get rid of function pointers for instructinon genaration --> done
 
 //parser: make lexer token and parser token -> when transitioning to parser token, get rid of unecessary fields (maybe provide a function for transition)
-//instruction sequence: get rid of function pointers for instructinon genaration
+
 
 
 //token: tagged union for actual values: constant (float64), formula enum (separate formula file), pointer for strings, reference number

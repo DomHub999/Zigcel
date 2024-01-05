@@ -56,7 +56,7 @@ pub const InstructionSequence = struct {
         this.instruction_list.deinit();
     }
 
-    pub fn triggerStackSequenceBinary(this: *@This(), operator_function: InstructionSequence.OperatorFunction, lhs: *const ?ParserToken, rhs: *const ?ParserToken) !void {
+    pub fn triggerStackSequenceBinary(this: *@This(), instruction:Instructions, lhs: *const ?ParserToken, rhs: *const ?ParserToken) !void {
         if (lhs.*) |l| {
             try this.pushConstant(&l.token);
             try this.unloadPayload(&l);
@@ -67,7 +67,7 @@ pub const InstructionSequence = struct {
             try this.unloadPayload(&r);
         }
 
-        try operator_function(this);
+        try this.execInstruction(instruction);
     }
 
     pub fn triggerStackSequenceUnary(this: *@This(), lhs: *const ParserToken) !void {
@@ -75,71 +75,19 @@ pub const InstructionSequence = struct {
         try this.unloadPayload(lhs);
     }
 
-    pub fn unloadPayload(this: *@This(), tok_op_fn: *const ParserToken) !void {
+    pub fn unloadPayload(this: *@This(), parser_token: *const ParserToken) !void {
         var idx: usize = 0;
-        while (idx < tok_op_fn.idx_payload) : (idx += 1) {
-            try tok_op_fn.payload[idx].?(this);
+        while (idx < parser_token.idx_payload) : (idx += 1) {
+            try this.execInstruction(parser_token.payload[idx].?);
         }
     }
 
-    
+    fn execInstruction(this: *@This(), instruction:Instructions)!void{
+        try this.instruction_list.append(Instruction{.single_instruction = instruction});
+    }
 
-    pub const OperatorFunction = *const fn (this: *@This()) std.mem.Allocator.Error!void;
-
-    pub fn pushConstant(this: *@This(), token: *const LexerToken) std.mem.Allocator.Error!void {
+    fn pushConstant(this: *@This(), token: *const LexerToken) std.mem.Allocator.Error!void {
         try this.instruction_list.append(Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = token.* } });
     }
 
-    pub fn equal(this: *@This()) std.mem.Allocator.Error!void {
-        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.equal });
-    }
-    pub fn greaterThan(this: *@This()) std.mem.Allocator.Error!void {
-        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.greaterThan });
-    }
-    pub fn lessThan(this: *@This()) std.mem.Allocator.Error!void {
-        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.lessThan });
-    }
-    pub fn greaterEqualThan(this: *@This()) std.mem.Allocator.Error!void {
-        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.greaterEqualThan });
-    }
-    pub fn lessEqualThan(this: *@This()) std.mem.Allocator.Error!void {
-        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.lessEqualThan });
-    }
-    pub fn notEqualTo(this: *@This()) std.mem.Allocator.Error!void {
-        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.notEqualTo });
-    }
-
-    pub fn concatenate(this: *@This()) std.mem.Allocator.Error!void {
-        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.concat_strings });
-    }
-
-    pub fn add(this: *@This()) std.mem.Allocator.Error!void {
-        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.add });
-    }
-    pub fn subtract(this: *@This()) std.mem.Allocator.Error!void {
-        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.subtract });
-    }
-
-    pub fn multipy(this: *@This()) std.mem.Allocator.Error!void {
-        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.multiply });
-    }
-    pub fn divide(this: *@This()) std.mem.Allocator.Error!void {
-        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.divide });
-    }
-
-    pub fn toThePowerOf(this: *@This()) std.mem.Allocator.Error!void {
-        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.to_the_power_of });
-    }
-    pub fn percentOf(this: *@This()) std.mem.Allocator.Error!void {
-        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.percent_of });
-    }
-    pub fn negate(this: *@This()) std.mem.Allocator.Error!void {
-        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.negate });
-    }
-    pub fn resolveReference(this: *@This()) std.mem.Allocator.Error!void {
-        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.resolve_reference });
-    }
-    pub fn f_sum(this: *@This()) std.mem.Allocator.Error!void {
-        try this.instruction_list.append(Instruction{ .single_instruction = Instructions.f_sum });
-    }
 };
