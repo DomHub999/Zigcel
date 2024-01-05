@@ -1,6 +1,6 @@
 const std = @import("std");
-const Token = @import("lexer_token.zig").Token;
-const TokenOperatorFunc = @import("parser_token.zig").TokenOperatorFunc;
+const LexerToken = @import("lexer_token.zig").LexerToken;
+const ParserToken = @import("parser_token.zig").ParserToken;
 
 pub const Instructions = enum {
     equal,
@@ -40,7 +40,7 @@ pub const Instruction = union(InstructionType) {
     single_instruction: Instructions,
     stack_operation: struct {
         instruction: Instructions,
-        token: Token,
+        token: LexerToken,
     },
 };
 
@@ -56,7 +56,7 @@ pub const InstructionSequence = struct {
         this.instruction_list.deinit();
     }
 
-    pub fn triggerStackSequenceBinary(this: *@This(), operator_function: InstructionSequence.OperatorFunction, lhs: *const ?TokenOperatorFunc, rhs: *const ?TokenOperatorFunc) !void {
+    pub fn triggerStackSequenceBinary(this: *@This(), operator_function: InstructionSequence.OperatorFunction, lhs: *const ?ParserToken, rhs: *const ?ParserToken) !void {
         if (lhs.*) |l| {
             try this.pushConstant(&l.token);
             try this.unloadPayload(&l);
@@ -70,27 +70,25 @@ pub const InstructionSequence = struct {
         try operator_function(this);
     }
 
-    pub fn triggerStackSequenceUnary(this: *@This(), lhs: *const TokenOperatorFunc) !void {
+    pub fn triggerStackSequenceUnary(this: *@This(), lhs: *const ParserToken) !void {
         try this.pushConstant(&lhs.token);
         try this.unloadPayload(lhs);
     }
 
-    pub fn unloadPayload(this: *@This(), tok_op_fn: *const TokenOperatorFunc) !void {
+    pub fn unloadPayload(this: *@This(), tok_op_fn: *const ParserToken) !void {
         var idx: usize = 0;
         while (idx < tok_op_fn.idx_payload) : (idx += 1) {
             try tok_op_fn.payload[idx].?(this);
         }
     }
 
+    
+
     pub const OperatorFunction = *const fn (this: *@This()) std.mem.Allocator.Error!void;
 
-
-
-    pub fn pushConstant(this: *@This(), token: *const Token) std.mem.Allocator.Error!void {
+    pub fn pushConstant(this: *@This(), token: *const LexerToken) std.mem.Allocator.Error!void {
         try this.instruction_list.append(Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = token.* } });
     }
-
-
 
     pub fn equal(this: *@This()) std.mem.Allocator.Error!void {
         try this.instruction_list.append(Instruction{ .single_instruction = Instructions.equal });

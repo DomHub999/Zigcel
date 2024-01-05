@@ -1,4 +1,4 @@
-const Token = @import("lexer_token.zig").Token;
+const LexerToken = @import("lexer_token.zig").LexerToken;
 const TokenType = @import("lexer_token.zig").TokenType;
 const ARGUMENT_DELIMINITER = @import("lexer_token.zig").ARGUMENT_DELIMINITER;
 
@@ -8,11 +8,11 @@ const Errors = error{
     tokenizer_token_type_cannot_be_determined,
 };
 
-pub fn getNextToken(source: [*:0]const u8, current: usize, source_size: usize) !struct { token: Token, new_current: ?usize } {
+pub fn getNextToken(source: [*:0]const u8, current: usize, source_size: usize) !struct { token: LexerToken, new_current: ?usize } {
     var this_current = current;
     var current_character = source[this_current];
     const rule = getRule(current_character);
-    var token = Token{};
+    var token = LexerToken{};
 
     switch (rule) {
         RuleType.single_character => {

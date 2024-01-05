@@ -5,7 +5,7 @@ const unwrapRange = @import("range_unwrap.zig").unwrapRange;
 const usizeToString = @import("libfunc.zig").usizeToString;
 
 const TokenType = @import("lexer_token.zig").TokenType;
-const Token = @import("lexer_token.zig").Token;
+const LexerToken = @import("lexer_token.zig").LexerToken;
 const TokenPair = @import("lexer_token.zig").TokenPair;
 const TokenListIterator = @import("lexer_token.zig").TokenListIterator;
 const makeTokenListIterator = @import("lexer_token.zig").makeTokenListIterator;
@@ -18,7 +18,7 @@ const Instruction = @import("instruction_sequence.zig").Instruction;
 const Instructions = @import("instruction_sequence.zig").Instructions;
 const InstructionType = @import("instruction_sequence.zig").InstructionType;
 
-const TokenOperatorFunc = @import("parser_token.zig").TokenOperatorFunc;
+const ParserToken = @import("parser_token.zig").ParserToken;
 
 const Error = error{
     parser_expected_operand_is_missing,
@@ -34,10 +34,9 @@ const Error = error{
     parser_token_no_payload_exceeded_max,
 };
 
-
 pub const Parser = struct {
     token_list_iterator: *TokenListIterator = undefined,
-    current_token: ?*Token = null,
+    current_token: ?*LexerToken = null,
     instruction_sequence: InstructionSequence = undefined,
 
     pub fn init(this: *@This(), token_list_iterator: *TokenListIterator) void {
@@ -57,8 +56,8 @@ pub const Parser = struct {
         this.current_token = this.token_list_iterator.getNext();
     }
 
-    const LayerFunction = *const fn (this: *@This(), arg_count: *usize) Error!?TokenOperatorFunc;
-    fn callToUnderlLayer(this: *@This(), operator_function: InstructionSequence.OperatorFunction, lhs: *?TokenOperatorFunc, funToUnderlLayer: LayerFunction, arg_count: *usize) !void {
+    const LayerFunction = *const fn (this: *@This(), arg_count: *usize) Error!?ParserToken;
+    fn callToUnderlLayer(this: *@This(), operator_function: InstructionSequence.OperatorFunction, lhs: *?ParserToken, funToUnderlLayer: LayerFunction, arg_count: *usize) !void {
         this.consumeToken();
         const result_rhs = try funToUnderlLayer(this, arg_count);
         try this.instruction_sequence.triggerStackSequenceBinary(operator_function, lhs, &result_rhs);
@@ -96,7 +95,7 @@ pub const Parser = struct {
     }
 
     //concatenation &
-    fn stage05(this: *@This(), arg_count: *usize) Error!?TokenOperatorFunc {
+    fn stage05(this: *@This(), arg_count: *usize) Error!?ParserToken {
         var result_lhs = try this.stage04(arg_count);
 
         if (this.current_token) |token_operator| {
@@ -110,7 +109,7 @@ pub const Parser = struct {
     }
 
     //addition and subtraction +,-
-    fn stage04(this: *@This(), arg_count: *usize) Error!?TokenOperatorFunc {
+    fn stage04(this: *@This(), arg_count: *usize) Error!?ParserToken {
         var result_lhs = try this.stage03(arg_count);
 
         if (this.current_token) |token_operator| {
@@ -128,7 +127,7 @@ pub const Parser = struct {
     }
 
     //multiplication and division *,/
-    fn stage03(this: *@This(), arg_count: *usize) Error!?TokenOperatorFunc {
+    fn stage03(this: *@This(), arg_count: *usize) Error!?ParserToken {
         var result_lhs = try this.stage02(arg_count);
 
         if (this.current_token) |token_operator| {
@@ -146,7 +145,7 @@ pub const Parser = struct {
     }
 
     //exponentiation ^
-    fn stage02(this: *@This(), arg_count: *usize) Error!?TokenOperatorFunc {
+    fn stage02(this: *@This(), arg_count: *usize) Error!?ParserToken {
         var result_lhs = try this.stage00(arg_count);
 
         if (this.current_token) |token_operator| {
@@ -160,13 +159,13 @@ pub const Parser = struct {
     }
 
     //constant, string, negation, opening bracket, formula, reference, range
-    fn stage00(this: *@This(), arg_count: *usize) Error!?TokenOperatorFunc {
+    fn stage00(this: *@This(), arg_count: *usize) Error!?ParserToken {
         if (this.current_token) |token_operand| {
             switch (token_operand.token_type) {
 
                 //CONSTANT
                 TokenType.constant => {
-                    var token_fnc = TokenOperatorFunc{ .token = token_operand.* };
+                    var token_fnc = ParserToken{ .token = token_operand.* };
                     this.consumeToken();
                     try this.dealWithPercentSign(&token_fnc);
                     arg_count.* += 1;
@@ -175,14 +174,14 @@ pub const Parser = struct {
 
                 //STRING
                 TokenType.string => {
-                    const token_fnc = TokenOperatorFunc{ .token = token_operand.* };
+                    const token_fnc = ParserToken{ .token = token_operand.* };
                     this.consumeToken();
                     return token_fnc;
                 },
 
                 //NEGATION
                 TokenType.minus => {
-                    var token_fnc = TokenOperatorFunc{};
+                    var token_fnc = ParserToken{};
                     try token_fnc.pushBackPayload(InstructionSequence.negate);
                     this.consumeToken();
 
@@ -250,7 +249,7 @@ pub const Parser = struct {
                         return Error.parser_closing_bracket_expected;
                     }
 
-                    var token_fnc = TokenOperatorFunc{};
+                    var token_fnc = ParserToken{};
                     token_fnc.token.token_type = TokenType.constant;
                     token_fnc.token.valid_token = true;
                     usizeToString(this_arg_count, &token_fnc.token.token);
@@ -268,7 +267,7 @@ pub const Parser = struct {
 
                 //REFERENCE
                 TokenType.reference => {
-                    var token_fnc = TokenOperatorFunc{ .token = token_operand.* };
+                    var token_fnc = ParserToken{ .token = token_operand.* };
                     try token_fnc.pushBackPayload(InstructionSequence.resolveReference);
                     this.consumeToken();
                     arg_count.* += 1;
@@ -280,7 +279,7 @@ pub const Parser = struct {
                     const reference_list = try unwrapRange(&token_operand.token);
 
                     for (reference_list.items) |reference| {
-                        var token_fnc = TokenOperatorFunc{};
+                        var token_fnc = ParserToken{};
                         token_fnc.token.token_type = TokenType.reference;
                         token_fnc.token.valid_token = true;
                         @memcpy(token_fnc.token.token[0..10], reference[0..]);
@@ -302,7 +301,7 @@ pub const Parser = struct {
         }
     }
 
-    fn dealWithPercentSign(this: *@This(), token_fnc: *TokenOperatorFunc) !void {
+    fn dealWithPercentSign(this: *@This(), token_fnc: *ParserToken) !void {
         while (this.current_token) |token_unwrapped| {
             if (token_unwrapped.token_type == TokenType.percent_sign) {
                 try token_fnc.pushBackPayload(InstructionSequence.percentOf);
@@ -312,21 +311,18 @@ pub const Parser = struct {
             }
         }
     }
-
 };
-
-
 
 test "division/multiplication and addition precendence" {
     const instruction_sequence = try testingGetInstructionSequence("100/50+10*20");
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.constant } } },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
         Instruction{ .single_instruction = Instructions.divide },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.constant } } },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
         Instruction{ .single_instruction = Instructions.multiply },
         Instruction{ .single_instruction = Instructions.add },
     };
@@ -344,8 +340,8 @@ test "strings" {
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.string } } },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.string } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.string } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.string } } },
         Instruction{ .single_instruction = Instructions.concat_strings },
     };
 
@@ -360,9 +356,9 @@ test "negate/percent/power 1" {
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
         Instruction{ .single_instruction = Instructions.negate },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
         Instruction{ .single_instruction = Instructions.percent_of },
         Instruction{ .single_instruction = Instructions.to_the_power_of },
     };
@@ -378,8 +374,8 @@ test "negate/percent/power 2" {
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.constant } } },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
         Instruction{ .single_instruction = Instructions.negate },
         Instruction{ .single_instruction = Instructions.percent_of },
         Instruction{ .single_instruction = Instructions.to_the_power_of },
@@ -396,10 +392,10 @@ test "brackets" {
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.constant } } },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
         Instruction{ .single_instruction = Instructions.subtract },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
         Instruction{ .single_instruction = Instructions.multiply },
     };
 
@@ -415,11 +411,11 @@ test "reference" {
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.reference } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.reference } } },
         Instruction{ .single_instruction = Instructions.resolve_reference },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
         Instruction{ .single_instruction = Instructions.multiply },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
         Instruction{ .single_instruction = Instructions.add },
     };
 
@@ -435,17 +431,17 @@ test "unroll range" {
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.reference } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.reference } } },
         Instruction{ .single_instruction = Instructions.resolve_reference },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.reference } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.reference } } },
         Instruction{ .single_instruction = Instructions.resolve_reference },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.reference } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.reference } } },
         Instruction{ .single_instruction = Instructions.resolve_reference },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.reference } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.reference } } },
         Instruction{ .single_instruction = Instructions.resolve_reference },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.reference } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.reference } } },
         Instruction{ .single_instruction = Instructions.resolve_reference },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.reference } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.reference } } },
         Instruction{ .single_instruction = Instructions.resolve_reference },
     };
 
@@ -464,19 +460,19 @@ test "formula 1" {
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.reference } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.reference } } },
         Instruction{ .single_instruction = Instructions.resolve_reference },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.reference } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.reference } } },
         Instruction{ .single_instruction = Instructions.resolve_reference },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.reference } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.reference } } },
         Instruction{ .single_instruction = Instructions.resolve_reference },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.reference } } },
-        Instruction{ .single_instruction = Instructions.resolve_reference },
-
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.reference } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.reference } } },
         Instruction{ .single_instruction = Instructions.resolve_reference },
 
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.reference } } },
+        Instruction{ .single_instruction = Instructions.resolve_reference },
+
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
         Instruction{ .single_instruction = Instructions.f_sum },
     };
 
@@ -495,22 +491,22 @@ test "formula 2" {
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.reference } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.reference } } },
         Instruction{ .single_instruction = Instructions.resolve_reference },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.reference } } },
-        Instruction{ .single_instruction = Instructions.resolve_reference },
-
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.constant } } },
-
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.reference } } },
-        Instruction{ .single_instruction = Instructions.resolve_reference },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.reference } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.reference } } },
         Instruction{ .single_instruction = Instructions.resolve_reference },
 
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
+
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.reference } } },
+        Instruction{ .single_instruction = Instructions.resolve_reference },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.reference } } },
+        Instruction{ .single_instruction = Instructions.resolve_reference },
+
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
         Instruction{ .single_instruction = Instructions.f_sum },
 
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
         Instruction{ .single_instruction = Instructions.f_sum },
     };
 
@@ -530,8 +526,8 @@ test "negation sequence" {
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.constant } } },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
         Instruction{ .single_instruction = Instructions.negate },
         Instruction{ .single_instruction = Instructions.negate },
         Instruction{ .single_instruction = Instructions.negate },
@@ -551,8 +547,8 @@ test "addition and negation" {
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.constant } } },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
         Instruction{ .single_instruction = Instructions.negate },
         Instruction{ .single_instruction = Instructions.percent_of },
         Instruction{ .single_instruction = Instructions.add },
@@ -569,8 +565,8 @@ test "division 1" {
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.constant } } },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
         Instruction{ .single_instruction = Instructions.divide },
     };
 
@@ -585,8 +581,8 @@ test "division 2" {
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.constant } } },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
         Instruction{ .single_instruction = Instructions.negate },
         Instruction{ .single_instruction = Instructions.divide },
     };
@@ -595,17 +591,16 @@ test "division 2" {
     @memcpy(solution[1].stack_operation.token.token[0..1], "5");
 
     try compareSolutionToinstrSeq(&solution, &instruction_sequence);
-
 }
 
 test "division 3" {
     const instruction_sequence = try testingGetInstructionSequence("91%/-8");
     defer instruction_sequence.instruction_list.deinit();
-   
-       var solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.constant } } },
+
+    var solution = [_]Instruction{
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
         Instruction{ .single_instruction = Instructions.percent_of },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = Token{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
         Instruction{ .single_instruction = Instructions.negate },
         Instruction{ .single_instruction = Instructions.divide },
     };
@@ -617,7 +612,6 @@ test "division 3" {
 }
 
 fn testingGetInstructionSequence(source: [*:0]const u8) !InstructionSequence {
-
     const token_list = try lex(source);
     var token_list_iterator = makeTokenListIterator(token_list);
     defer token_list_iterator.drop();
