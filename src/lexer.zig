@@ -3,7 +3,7 @@ const std = @import("std");
 const token_list_type = @import("lexer_token.zig").token_list_type;
 const TokenType = @import("lexer_token.zig").TokenType;
 const extractToken = @import("lexer_token.zig").extractToken;
-const makeTokenListIterator = @import("lexer_token.zig").makeTokenListIterator;
+const makeTokenListIterator = @import("lexer_token.zig").TokenListIterator.makeTokenListIterator;
 
 const getNextToken = @import("tokenizer.zig").getNextToken;
 

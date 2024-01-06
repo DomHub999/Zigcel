@@ -9,7 +9,8 @@ const LexerToken = @import("lexer_token.zig").LexerToken;
 const TokenPair = @import("lexer_token.zig").TokenPair;
 const TokenListIterator = @import("lexer_token.zig").TokenListIterator;
 const token_list_type = @import("lexer_token.zig").token_list_type;
-const makeTokenListIterator = @import("lexer_token.zig").makeTokenListIterator;
+const makeTokenListIterator = @import("lexer_token.zig").TokenListIterator.makeTokenListIterator;
+const createParserTokenFromLexTok = @import("parser_token.zig").ParserToken.createParserTokenFromLexTok;
 
 const lex = @import("lexer.zig").lex;
 const extractToken = @import("lexer.zig").extractToken;
@@ -166,7 +167,8 @@ pub const Parser = struct {
 
                 //CONSTANT
                 TokenType.constant => {
-                    var parser_token = ParserToken{ .token = token_operand.* };
+                    // var parser_token = ParserToken{ .token = token_operand.* }; delete
+                    var parser_token = createParserTokenFromLexTok(token_operand);
                     this.consumeToken();
                     try this.dealWithPercentSign(&parser_token);
                     arg_count.* += 1;
@@ -175,7 +177,8 @@ pub const Parser = struct {
 
                 //STRING
                 TokenType.string => {
-                    const parser_token = ParserToken{ .token = token_operand.* };
+                    // const parser_token = ParserToken{ .token = token_operand.* }; delete
+                    const parser_token = createParserTokenFromLexTok(token_operand);
                     this.consumeToken();
                     return parser_token;
                 },
@@ -196,8 +199,7 @@ pub const Parser = struct {
                     }
 
                     if (this.current_token) |operand_negate| {
-                        parser_token.token = operand_negate.*;
-
+                        parser_token.copyAttributesFromLexTok(operand_negate);    
                         this.consumeToken();
                     } else {
                         return Error.parser_no_operand_to_negate_available;
@@ -251,9 +253,9 @@ pub const Parser = struct {
                     }
 
                     var parser_token = ParserToken{};
-                    parser_token.token.token_type = TokenType.constant;
-                    parser_token.token.valid_token = true;
-                    usizeToString(this_arg_count, &parser_token.token.token);
+                    parser_token.token_type = TokenType.constant;
+                    
+                    usizeToString(this_arg_count, &parser_token.token);
 
                     //temp, until the lexer delivers the formula
                     if (formula[0] == 'S' and formula[1] == 'U' and formula[2] == 'M') {
@@ -268,11 +270,11 @@ pub const Parser = struct {
 
                 //REFERENCE
                 TokenType.reference => {
-                    var token_fnc = ParserToken{ .token = token_operand.* };
-                    try token_fnc.pushBackPayload(Instructions.resolve_reference);
+                    var parser_token = createParserTokenFromLexTok(token_operand);
+                    try parser_token.pushBackPayload(Instructions.resolve_reference);
                     this.consumeToken();
                     arg_count.* += 1;
-                    return token_fnc;
+                    return parser_token;
                 },
 
                 //RANGE
@@ -280,12 +282,10 @@ pub const Parser = struct {
                     const reference_list = try unwrapRange(&token_operand.token);
 
                     for (reference_list.items) |reference| {
-                        var token_fnc = ParserToken{};
-                        token_fnc.token.token_type = TokenType.reference;
-                        token_fnc.token.valid_token = true;
-                        @memcpy(token_fnc.token.token[0..10], reference[0..]);
-                        try token_fnc.pushBackPayload(Instructions.resolve_reference);
-                        try this.instruction_sequence.triggerStackSequenceUnary(&token_fnc);
+                        var parser_token = ParserToken{.token_type = TokenType.reference};
+                        @memcpy(parser_token.token[0..10], reference[0..]);
+                        try parser_token.pushBackPayload(Instructions.resolve_reference);
+                        try this.instruction_sequence.triggerStackSequenceUnary(&parser_token);
                         arg_count.* += 1;
                     }
 
@@ -319,19 +319,19 @@ test "division/multiplication and addition precendence" {
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant  } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant  } },
         Instruction{ .single_instruction = Instructions.divide },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant  } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant  } },
         Instruction{ .single_instruction = Instructions.multiply },
         Instruction{ .single_instruction = Instructions.add },
     };
 
-    @memcpy(solution[0].stack_operation.token.token[0..3], "100");
-    @memcpy(solution[1].stack_operation.token.token[0..2], "50");
-    @memcpy(solution[3].stack_operation.token.token[0..2], "10");
-    @memcpy(solution[4].stack_operation.token.token[0..2], "20");
+    @memcpy(solution[0].stack_operation.token[0..3], "100");
+    @memcpy(solution[1].stack_operation.token[0..2], "50");
+    @memcpy(solution[3].stack_operation.token[0..2], "10");
+    @memcpy(solution[4].stack_operation.token[0..2], "20");
 
     try compareSolutionToinstrSeq(&solution, &instruction_sequence);
 }
@@ -341,13 +341,13 @@ test "strings" {
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.string } } },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.string } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.string  } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.string  } },
         Instruction{ .single_instruction = Instructions.concat_strings },
     };
 
-    @memcpy(solution[0].stack_operation.token.token[0..3], "abc");
-    @memcpy(solution[1].stack_operation.token.token[0..3], "def");
+    @memcpy(solution[0].stack_operation.token[0..3], "abc");
+    @memcpy(solution[1].stack_operation.token[0..3], "def");
 
     try compareSolutionToinstrSeq(&solution, &instruction_sequence);
 }
@@ -357,15 +357,15 @@ test "negate/percent/power 1" {
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant  } },
         Instruction{ .single_instruction = Instructions.negate },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant  } },
         Instruction{ .single_instruction = Instructions.percent_of },
         Instruction{ .single_instruction = Instructions.to_the_power_of },
     };
 
-    @memcpy(solution[0].stack_operation.token.token[0..2], "10");
-    @memcpy(solution[2].stack_operation.token.token[0..3], "300");
+    @memcpy(solution[0].stack_operation.token[0..2], "10");
+    @memcpy(solution[2].stack_operation.token[0..3], "300");
 
     try compareSolutionToinstrSeq(&solution, &instruction_sequence);
 }
@@ -375,15 +375,15 @@ test "negate/percent/power 2" {
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant  } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant  } },
         Instruction{ .single_instruction = Instructions.negate },
         Instruction{ .single_instruction = Instructions.percent_of },
         Instruction{ .single_instruction = Instructions.to_the_power_of },
     };
 
-    @memcpy(solution[0].stack_operation.token.token[0..2], "10");
-    @memcpy(solution[1].stack_operation.token.token[0..3], "300");
+    @memcpy(solution[0].stack_operation.token[0..2], "10");
+    @memcpy(solution[1].stack_operation.token[0..3], "300");
 
     try compareSolutionToinstrSeq(&solution, &instruction_sequence);
 }
@@ -393,16 +393,16 @@ test "brackets" {
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant  } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant  } },
         Instruction{ .single_instruction = Instructions.subtract },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant  } },
         Instruction{ .single_instruction = Instructions.multiply },
     };
 
-    @memcpy(solution[0].stack_operation.token.token[0..1], "7");
-    @memcpy(solution[1].stack_operation.token.token[0..1], "3");
-    @memcpy(solution[3].stack_operation.token.token[0..2], "50");
+    @memcpy(solution[0].stack_operation.token[0..1], "7");
+    @memcpy(solution[1].stack_operation.token[0..1], "3");
+    @memcpy(solution[3].stack_operation.token[0..2], "50");
 
     try compareSolutionToinstrSeq(&solution, &instruction_sequence);
 }
@@ -412,17 +412,17 @@ test "reference" {
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.reference } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.reference  } },
         Instruction{ .single_instruction = Instructions.resolve_reference },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant  } },
         Instruction{ .single_instruction = Instructions.multiply },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant  } },
         Instruction{ .single_instruction = Instructions.add },
     };
 
-    @memcpy(solution[0].stack_operation.token.token[0..2], "F7");
-    @memcpy(solution[2].stack_operation.token.token[0..2], "20");
-    @memcpy(solution[4].stack_operation.token.token[0..3], "100");
+    @memcpy(solution[0].stack_operation.token[0..2], "F7");
+    @memcpy(solution[2].stack_operation.token[0..2], "20");
+    @memcpy(solution[4].stack_operation.token[0..3], "100");
 
     try compareSolutionToinstrSeq(&solution, &instruction_sequence);
 }
@@ -432,26 +432,26 @@ test "unroll range" {
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.reference } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.reference } },
         Instruction{ .single_instruction = Instructions.resolve_reference },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.reference } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.reference } },
         Instruction{ .single_instruction = Instructions.resolve_reference },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.reference } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.reference } },
         Instruction{ .single_instruction = Instructions.resolve_reference },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.reference } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.reference } },
         Instruction{ .single_instruction = Instructions.resolve_reference },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.reference } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.reference } },
         Instruction{ .single_instruction = Instructions.resolve_reference },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.reference } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.reference } },
         Instruction{ .single_instruction = Instructions.resolve_reference },
     };
 
-    @memcpy(solution[0].stack_operation.token.token[0..4], "A100");
-    @memcpy(solution[2].stack_operation.token.token[0..4], "A101");
-    @memcpy(solution[4].stack_operation.token.token[0..4], "A102");
-    @memcpy(solution[6].stack_operation.token.token[0..4], "B100");
-    @memcpy(solution[8].stack_operation.token.token[0..4], "B101");
-    @memcpy(solution[10].stack_operation.token.token[0..4], "B102");
+    @memcpy(solution[0].stack_operation.token[0..4], "A100");
+    @memcpy(solution[2].stack_operation.token[0..4], "A101");
+    @memcpy(solution[4].stack_operation.token[0..4], "A102");
+    @memcpy(solution[6].stack_operation.token[0..4], "B100");
+    @memcpy(solution[8].stack_operation.token[0..4], "B101");
+    @memcpy(solution[10].stack_operation.token[0..4], "B102");
 
     try compareSolutionToinstrSeq(&solution, &instruction_sequence);
 }
@@ -461,28 +461,28 @@ test "formula 1" {
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.reference } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.reference } },
         Instruction{ .single_instruction = Instructions.resolve_reference },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.reference } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.reference } },
         Instruction{ .single_instruction = Instructions.resolve_reference },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.reference } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.reference } },
         Instruction{ .single_instruction = Instructions.resolve_reference },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.reference } } },
-        Instruction{ .single_instruction = Instructions.resolve_reference },
-
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.reference } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.reference } },
         Instruction{ .single_instruction = Instructions.resolve_reference },
 
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.reference } },
+        Instruction{ .single_instruction = Instructions.resolve_reference },
+
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant } },
         Instruction{ .single_instruction = Instructions.f_sum },
     };
 
-    @memcpy(solution[0].stack_operation.token.token[0..2], "A1");
-    @memcpy(solution[2].stack_operation.token.token[0..2], "A2");
-    @memcpy(solution[4].stack_operation.token.token[0..2], "B1");
-    @memcpy(solution[6].stack_operation.token.token[0..2], "B2");
-    @memcpy(solution[8].stack_operation.token.token[0..2], "R5");
-    @memcpy(solution[10].stack_operation.token.token[0..1], "5");
+    @memcpy(solution[0].stack_operation.token[0..2], "A1");
+    @memcpy(solution[2].stack_operation.token[0..2], "A2");
+    @memcpy(solution[4].stack_operation.token[0..2], "B1");
+    @memcpy(solution[6].stack_operation.token[0..2], "B2");
+    @memcpy(solution[8].stack_operation.token[0..2], "R5");
+    @memcpy(solution[10].stack_operation.token[0..1], "5");
 
     try compareSolutionToinstrSeq(&solution, &instruction_sequence);
 }
@@ -492,32 +492,32 @@ test "formula 2" {
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.reference } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.reference } },
         Instruction{ .single_instruction = Instructions.resolve_reference },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.reference } } },
-        Instruction{ .single_instruction = Instructions.resolve_reference },
-
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
-
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.reference } } },
-        Instruction{ .single_instruction = Instructions.resolve_reference },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.reference } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.reference } },
         Instruction{ .single_instruction = Instructions.resolve_reference },
 
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant } },
+
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.reference } },
+        Instruction{ .single_instruction = Instructions.resolve_reference },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.reference } },
+        Instruction{ .single_instruction = Instructions.resolve_reference },
+
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant } },
         Instruction{ .single_instruction = Instructions.f_sum },
 
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant } },
         Instruction{ .single_instruction = Instructions.f_sum },
     };
 
-    @memcpy(solution[0].stack_operation.token.token[0..2], "A1");
-    @memcpy(solution[2].stack_operation.token.token[0..3], "Z51");
-    @memcpy(solution[4].stack_operation.token.token[0..4], "2024");
-    @memcpy(solution[5].stack_operation.token.token[0..2], "B1");
-    @memcpy(solution[7].stack_operation.token.token[0..2], "B2");
-    @memcpy(solution[9].stack_operation.token.token[0..1], "2");
-    @memcpy(solution[11].stack_operation.token.token[0..1], "4");
+    @memcpy(solution[0].stack_operation.token[0..2], "A1");
+    @memcpy(solution[2].stack_operation.token[0..3], "Z51");
+    @memcpy(solution[4].stack_operation.token[0..4], "2024");
+    @memcpy(solution[5].stack_operation.token[0..2], "B1");
+    @memcpy(solution[7].stack_operation.token[0..2], "B2");
+    @memcpy(solution[9].stack_operation.token[0..1], "2");
+    @memcpy(solution[11].stack_operation.token[0..1], "4");
 
     try compareSolutionToinstrSeq(&solution, &instruction_sequence);
 }
@@ -527,8 +527,8 @@ test "negation sequence" {
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant } },
         Instruction{ .single_instruction = Instructions.negate },
         Instruction{ .single_instruction = Instructions.negate },
         Instruction{ .single_instruction = Instructions.negate },
@@ -537,8 +537,8 @@ test "negation sequence" {
         Instruction{ .single_instruction = Instructions.add },
     };
 
-    @memcpy(solution[0].stack_operation.token.token[0..1], "1");
-    @memcpy(solution[1].stack_operation.token.token[0..1], "5");
+    @memcpy(solution[0].stack_operation.token[0..1], "1");
+    @memcpy(solution[1].stack_operation.token[0..1], "5");
 
     try compareSolutionToinstrSeq(&solution, &instruction_sequence);
 }
@@ -548,15 +548,15 @@ test "addition and negation" {
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant } },
         Instruction{ .single_instruction = Instructions.negate },
         Instruction{ .single_instruction = Instructions.percent_of },
         Instruction{ .single_instruction = Instructions.add },
     };
 
-    @memcpy(solution[0].stack_operation.token.token[0..1], "5");
-    @memcpy(solution[1].stack_operation.token.token[0..1], "9");
+    @memcpy(solution[0].stack_operation.token[0..1], "5");
+    @memcpy(solution[1].stack_operation.token[0..1], "9");
 
     try compareSolutionToinstrSeq(&solution, &instruction_sequence);
 }
@@ -566,13 +566,13 @@ test "division 1" {
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant } },
         Instruction{ .single_instruction = Instructions.divide },
     };
 
-    @memcpy(solution[0].stack_operation.token.token[0..2], "10");
-    @memcpy(solution[1].stack_operation.token.token[0..1], "5");
+    @memcpy(solution[0].stack_operation.token[0..2], "10");
+    @memcpy(solution[1].stack_operation.token[0..1], "5");
 
     try compareSolutionToinstrSeq(&solution, &instruction_sequence);
 }
@@ -582,14 +582,14 @@ test "division 2" {
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant } },
         Instruction{ .single_instruction = Instructions.negate },
         Instruction{ .single_instruction = Instructions.divide },
     };
 
-    @memcpy(solution[0].stack_operation.token.token[0..2], "10");
-    @memcpy(solution[1].stack_operation.token.token[0..1], "5");
+    @memcpy(solution[0].stack_operation.token[0..2], "10");
+    @memcpy(solution[1].stack_operation.token[0..1], "5");
 
     try compareSolutionToinstrSeq(&solution, &instruction_sequence);
 }
@@ -599,15 +599,15 @@ test "division 3" {
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant } },
         Instruction{ .single_instruction = Instructions.percent_of },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token = LexerToken{ .token_type = TokenType.constant } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant } },
         Instruction{ .single_instruction = Instructions.negate },
         Instruction{ .single_instruction = Instructions.divide },
     };
 
-    @memcpy(solution[0].stack_operation.token.token[0..2], "91");
-    @memcpy(solution[2].stack_operation.token.token[0..1], "8");
+    @memcpy(solution[0].stack_operation.token[0..2], "91");
+    @memcpy(solution[2].stack_operation.token[0..1], "8");
 
     try compareSolutionToinstrSeq(&solution, &instruction_sequence);
 }
@@ -630,7 +630,7 @@ fn compareSolutionToinstrSeq(solution: []Instruction, instruction_sequence: *con
             },
             InstructionType.stack_operation => {
                 try std.testing.expect(sol.stack_operation.instruction == itm.stack_operation.instruction);
-                try std.testing.expect(std.mem.eql(u8, sol.stack_operation.token.token[0..], itm.stack_operation.token.token[0..]));
+                try std.testing.expect(std.mem.eql(u8, sol.stack_operation.token[0..], itm.stack_operation.token[0..]));
             },
         }
     }
