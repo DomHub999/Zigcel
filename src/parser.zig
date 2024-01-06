@@ -50,7 +50,7 @@ pub const Parser = struct {
     pub fn parse(this: *@This()) !InstructionSequence {
         this.consumeToken();
         var arg_count: usize = 0;
-        try this.stage06(&arg_count);
+        try this.Layer05(&arg_count);
         return this.instruction_sequence;
     }
 
@@ -66,27 +66,27 @@ pub const Parser = struct {
     }
 
     //comparison =, >, <, >=, <=, <>
-    fn stage06(this: *@This(), arg_count: *usize) !void {
-        var result_lhs = try this.stage05(arg_count);
+    fn Layer05(this: *@This(), arg_count: *usize) !void {
+        var result_lhs = try this.Layer04(arg_count);
 
         if (this.current_token) |token_operator| {
             while (token_operator.token_type == TokenType.equal_sign) {
-                try this.callToUnderlLayer(Instructions.equal, &result_lhs, Parser.stage05, arg_count);
+                try this.callToUnderlLayer(Instructions.equal, &result_lhs, Parser.Layer04, arg_count);
             }
             while (token_operator.token_type == TokenType.greater_than_sign) {
-                try this.callToUnderlLayer(Instructions.greaterThan, &result_lhs, Parser.stage05, arg_count);
+                try this.callToUnderlLayer(Instructions.greaterThan, &result_lhs, Parser.Layer04, arg_count);
             }
             while (token_operator.token_type == TokenType.less_than_sign) {
-                try this.callToUnderlLayer(Instructions.lessThan, &result_lhs, Parser.stage05, arg_count);
+                try this.callToUnderlLayer(Instructions.lessThan, &result_lhs, Parser.Layer04, arg_count);
             }
             while (token_operator.token_type == TokenType.greater_equal_to_sign) {
-                try this.callToUnderlLayer(Instructions.greaterEqualThan, &result_lhs, Parser.stage05, arg_count);
+                try this.callToUnderlLayer(Instructions.greaterEqualThan, &result_lhs, Parser.Layer04, arg_count);
             }
             while (token_operator.token_type == TokenType.less_equal_to_sign) {
-                try this.callToUnderlLayer(Instructions.lessEqualThan, &result_lhs, Parser.stage05, arg_count);
+                try this.callToUnderlLayer(Instructions.lessEqualThan, &result_lhs, Parser.Layer04, arg_count);
             }
             while (token_operator.token_type == TokenType.not_equal_to_sign) {
-                try this.callToUnderlLayer(Instructions.notEqualTo, &result_lhs, Parser.stage05, arg_count);
+                try this.callToUnderlLayer(Instructions.notEqualTo, &result_lhs, Parser.Layer04, arg_count);
             }
         }
 
@@ -97,12 +97,12 @@ pub const Parser = struct {
     }
 
     //concatenation &
-    fn stage05(this: *@This(), arg_count: *usize) Error!?ParserToken {
-        var result_lhs = try this.stage04(arg_count);
+    fn Layer04(this: *@This(), arg_count: *usize) Error!?ParserToken {
+        var result_lhs = try this.Layer03(arg_count);
 
         if (this.current_token) |token_operator| {
             while (token_operator.token_type == TokenType.ampersand) {
-                try this.callToUnderlLayer(Instructions.concat_strings, &result_lhs, Parser.stage04, arg_count);
+                try this.callToUnderlLayer(Instructions.concat_strings, &result_lhs, Parser.Layer03, arg_count);
                 return null;
             }
         }
@@ -111,16 +111,16 @@ pub const Parser = struct {
     }
 
     //addition and subtraction +,-
-    fn stage04(this: *@This(), arg_count: *usize) Error!?ParserToken {
-        var result_lhs = try this.stage03(arg_count);
+    fn Layer03(this: *@This(), arg_count: *usize) Error!?ParserToken {
+        var result_lhs = try this.Layer02(arg_count);
 
         if (this.current_token) |token_operator| {
             while (token_operator.token_type == TokenType.plus) {
-                try this.callToUnderlLayer(Instructions.add, &result_lhs, Parser.stage03, arg_count);
+                try this.callToUnderlLayer(Instructions.add, &result_lhs, Parser.Layer02, arg_count);
                 return null;
             }
             while (token_operator.token_type == TokenType.minus) {
-                try this.callToUnderlLayer(Instructions.subtract, &result_lhs, Parser.stage03, arg_count);
+                try this.callToUnderlLayer(Instructions.subtract, &result_lhs, Parser.Layer02, arg_count);
                 return null;
             }
         }
@@ -129,16 +129,16 @@ pub const Parser = struct {
     }
 
     //multiplication and division *,/
-    fn stage03(this: *@This(), arg_count: *usize) Error!?ParserToken {
-        var result_lhs = try this.stage02(arg_count);
+    fn Layer02(this: *@This(), arg_count: *usize) Error!?ParserToken {
+        var result_lhs = try this.Layer01(arg_count);
 
         if (this.current_token) |token_operator| {
             while (token_operator.token_type == TokenType.asterisk) {
-                try this.callToUnderlLayer(Instructions.multiply, &result_lhs, Parser.stage02, arg_count);
+                try this.callToUnderlLayer(Instructions.multiply, &result_lhs, Parser.Layer01, arg_count);
                 return null;
             }
             while (token_operator.token_type == TokenType.forward_slash) {
-                try this.callToUnderlLayer(Instructions.divide, &result_lhs, Parser.stage02, arg_count);
+                try this.callToUnderlLayer(Instructions.divide, &result_lhs, Parser.Layer01, arg_count);
                 return null;
             }
         }
@@ -147,12 +147,12 @@ pub const Parser = struct {
     }
 
     //exponentiation ^
-    fn stage02(this: *@This(), arg_count: *usize) Error!?ParserToken {
-        var result_lhs = try this.stage00(arg_count);
+    fn Layer01(this: *@This(), arg_count: *usize) Error!?ParserToken {
+        var result_lhs = try this.Layer00(arg_count);
 
         if (this.current_token) |token_operator| {
             while (token_operator.token_type == TokenType.caret) {
-                try this.callToUnderlLayer(Instructions.to_the_power_of, &result_lhs, Parser.stage00, arg_count);
+                try this.callToUnderlLayer(Instructions.to_the_power_of, &result_lhs, Parser.Layer00, arg_count);
                 return null;
             }
         }
@@ -161,7 +161,7 @@ pub const Parser = struct {
     }
 
     //constant, string, negation, opening bracket, formula, reference, range
-    fn stage00(this: *@This(), arg_count: *usize) Error!?ParserToken {
+    fn Layer00(this: *@This(), arg_count: *usize) Error!?ParserToken {
         if (this.current_token) |token_operand| {
             switch (token_operand.token_type) {
 
@@ -213,7 +213,7 @@ pub const Parser = struct {
                 //OPENING BRACKET
                 TokenType.bracket_open => {
                     this.consumeToken();
-                    try this.stage06(arg_count);
+                    try this.Layer05(arg_count);
                     if (this.current_token) |token| {
                         if (token.token_type == TokenType.bracket_close) {
                             this.consumeToken();
@@ -242,7 +242,7 @@ pub const Parser = struct {
                         if (this.current_token.?.token_type == TokenType.argument_deliminiter) {
                             this.consumeToken();
                         } else {
-                            try this.stage06(&this_arg_count);
+                            try this.Layer05(&this_arg_count);
                         }
                     }
 
