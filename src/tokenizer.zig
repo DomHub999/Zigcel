@@ -104,6 +104,7 @@ const CharaRange = union(Option) {
     },
 };
 
+
 const rule_table = makeRuleTable();
 
 fn makeRuleTable() [255]Rule {
@@ -213,7 +214,7 @@ fn alphabet_f(source: [*:0]const u8, start: usize, current: usize, source_size: 
         '0'...'9' => {
             if ((current + 1) < source_size) {
                 if (source[current + 1] == '(') {
-                    return TokenType.formula;
+                    return TokenType.function;
                 }
             }
             var idx: usize = start;
@@ -227,7 +228,7 @@ fn alphabet_f(source: [*:0]const u8, start: usize, current: usize, source_size: 
         'A'...'Z' => {
             if ((current + 1) < source_size) {
                 if (source[current + 1] == '(') {
-                    return TokenType.formula;
+                    return TokenType.function;
                 }
             }
         },

@@ -1,13 +1,14 @@
 const std = @import("std");
 const pow = std.math.pow;
-const lib = @import("libfunc.zig");
+const usizeToString = @import("libfunc.zig").usizeToString;
 
 const Error = error{
     rangeunwrapper_range_colon_divisor_na,
     rangeunwrapper_no_row_part_in_range,
 };
 
-const ReferenceList = std.ArrayList([10]u8);
+pub const REFERENCE_SIZE: usize = 10;
+pub const ReferenceList = std.ArrayList([REFERENCE_SIZE]u8);
 
 const DelimPositions = struct {
     left_col_start: usize,
@@ -29,7 +30,7 @@ const IndividualParts = struct {
     right_row: usize,
 };
 
-pub fn unwrapRange(range: []const u8) !std.ArrayList([10]u8) {
+pub fn unwrapRange(range: []const u8) !ReferenceList {
     var reference_list = ReferenceList.init(std.heap.page_allocator);
 
     const range_delimiters = try calcDelimiters(range);
@@ -94,9 +95,9 @@ fn calcDelimiters(range: []const u8) !DelimPositions {
 
     const right_row_start = range_delim_idx + idx_right + 1;
     var right_row_end: usize = right_row_start;
-    while (right_row_end < range.len and (range[right_row_end] >= '0' and range[right_row_end] < '9')):(right_row_end += 1) {}     
+    while (right_row_end < range.len and (range[right_row_end] >= '0' and range[right_row_end] < '9')) : (right_row_end += 1) {}
     right_row_end -= 1;
-    
+
     const delimiters = DelimPositions{
         .left_col_start = 0,
         .left_col_end = idx_left - 1,
@@ -147,7 +148,7 @@ fn upperCharacterToNum(chara: u8) usize {
     return chara - '@';
 }
 
-const alphabet_num_chara: usize = 26;
+const ALPHABET_NUM_CHARA: usize = 26;
 fn numberFromCol(col: *const [3]u8, len: usize) usize {
     var this_length = len;
     var result: usize = 0;
@@ -155,7 +156,7 @@ fn numberFromCol(col: *const [3]u8, len: usize) usize {
 
     while (this_length > 0) : (this_length -= 1) {
         const numFromChara = upperCharacterToNum(col[this_length - 1]);
-        const multiplicator = pow(usize, alphabet_num_chara, iteration);
+        const multiplicator = pow(usize, ALPHABET_NUM_CHARA, iteration);
         result += numFromChara * multiplicator;
         iteration += 1;
     }
@@ -174,7 +175,7 @@ fn colFromNumber(num: usize) [3]u8 {
     var remainder: usize = num;
 
     while (iteration > 0) : (iteration -= 1) {
-        const divisor = pow(usize, alphabet_num_chara, iteration - 1);
+        const divisor = pow(usize, ALPHABET_NUM_CHARA, iteration - 1);
         const chara_num = remainder / divisor;
 
         if (chara_num > 0) {
@@ -189,7 +190,7 @@ fn colFromNumber(num: usize) [3]u8 {
 
 fn rowFromNumber(num: usize) [7]u8 {
     var row = [_]u8{0} ** 7;
-    lib.usizeToString(num, &row);
+    usizeToString(num, &row);
     return row;
 }
 

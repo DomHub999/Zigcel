@@ -4,8 +4,13 @@ const token_list_type = @import("lexer_token.zig").token_list_type;
 const TokenType = @import("lexer_token.zig").TokenType;
 const extractToken = @import("lexer_token.zig").extractToken;
 const makeTokenListIterator = @import("lexer_token.zig").TokenListIterator.makeTokenListIterator;
+const LexerToken = @import("lexer_token.zig").LexerToken;
 
 const getNextToken = @import("tokenizer.zig").getNextToken;
+
+const ReferenceList = @import("range_unwrap.zig").ReferenceList;
+const unwrapRange = @import("range_unwrap.zig").unwrapRange;
+const REFERENCE_SIZE = @import("range_unwrap.zig").REFERENCE_SIZE;
 
 const Errors = error{
     lexer_source_size_equals_null,
@@ -22,12 +27,30 @@ pub fn lex(source: [*:0]const u8) !token_list_type {
 
     while (current_position) |pos| {
         const next_token_result = try getNextToken(source, pos, source_size);
-        try token_list.append(next_token_result.token);
+        const referece_list = try dealWithRange(&next_token_result.token);
+        if (referece_list) |list| {
+            for (list.items) |reference| {
+                var token = LexerToken{ .token_type = TokenType.reference };
+                @memcpy(token.token[0..REFERENCE_SIZE], reference[0..]);
+                try token_list.append(token);
+            }
+            list.deinit();
+        } else {
+            try token_list.append(next_token_result.token);
+        }
+
         current_position = next_token_result.new_current;
     }
     invalidateUnessecaryTokens(&token_list);
 
     return token_list;
+}
+
+fn dealWithRange(lexer_token: *const LexerToken) !?ReferenceList {
+    if (lexer_token.token_type == TokenType.range) {
+        return try unwrapRange(&lexer_token.token);
+    }
+    return null;
 }
 
 fn invalidateUnessecaryTokens(token_list: *token_list_type) void {
@@ -115,7 +138,7 @@ test "string" {
 }
 
 test "reference" {
-    const source = "A1,BB23,D4:EF567";
+    const source = "A1,BB23,A100:B101";
     const token_list = try lex(source);
     var token_list_iterator = makeTokenListIterator(token_list);
     defer token_list_iterator.drop();
@@ -146,9 +169,27 @@ test "reference" {
 
     token = token_list_iterator.getNext().?;
     token_slice = extractToken(&token.token);
-    result = std.mem.eql(u8, token_slice, "D4:EF567"[0..]);
+    result = std.mem.eql(u8, token_slice, "A100"[0..]);
     try std.testing.expect(result);
-    try std.testing.expect(token.token_type == TokenType.range);
+    try std.testing.expect(token.token_type == TokenType.reference);
+
+    token = token_list_iterator.getNext().?;
+    token_slice = extractToken(&token.token);
+    result = std.mem.eql(u8, token_slice, "A101"[0..]);
+    try std.testing.expect(result);
+    try std.testing.expect(token.token_type == TokenType.reference);
+
+    token = token_list_iterator.getNext().?;
+    token_slice = extractToken(&token.token);
+    result = std.mem.eql(u8, token_slice, "B100"[0..]);
+    try std.testing.expect(result);
+    try std.testing.expect(token.token_type == TokenType.reference);
+
+    token = token_list_iterator.getNext().?;
+    token_slice = extractToken(&token.token);
+    result = std.mem.eql(u8, token_slice, "B101"[0..]);
+    try std.testing.expect(result);
+    try std.testing.expect(token.token_type == TokenType.reference);
 }
 
 test "formula" {
@@ -160,7 +201,7 @@ test "formula" {
     var token = token_list_iterator.getNext().?;
     var token_slice = extractToken(&token.token);
     try std.testing.expect(std.mem.eql(u8, token_slice, "SUM"[0..]));
-    try std.testing.expect(token.token_type == TokenType.formula);
+    try std.testing.expect(token.token_type == TokenType.function);
 
     token = token_list_iterator.getNext().?;
     token_slice = extractToken(&token.token);

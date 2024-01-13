@@ -11,20 +11,19 @@
 //token: write transition functions (string to float, string to formula, string to reference, string to string pointer)
 //token: extraction functions for actual values
 //parser: make "parser token" payload heap memory
-
+//rename function to formula
 
 const std = @import("std");
+const print = @import("std").debug.print;
 pub fn main() !void {
 
-    const arr1 = [4]u8{'a','b','c','d'};
-    var arr2 = [_]u8{0}**4;
 
-    arr2 = arr1;
+  const f = try std.fmt.parseFloat(f64, "100"[0..]);
+  const f2:f64 = 0.0;
+  const result = f - f2;
 
-    for (arr2) |value| {
 
-        std.debug.print("{c}\n",.{value});
-    }
-
+print("{}", .{result});
+  
 
 }

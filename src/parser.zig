@@ -11,9 +11,10 @@ const TokenListIterator = @import("lexer_token.zig").TokenListIterator;
 const token_list_type = @import("lexer_token.zig").token_list_type;
 const makeTokenListIterator = @import("lexer_token.zig").TokenListIterator.makeTokenListIterator;
 const createParserTokenFromLexTok = @import("parser_token.zig").ParserToken.createParserTokenFromLexTok;
+const extractToken = @import("lexer_token.zig").extractToken;
 
 const lex = @import("lexer.zig").lex;
-const extractToken = @import("lexer.zig").extractToken;
+
 
 const InstructionSequence = @import("instruction_sequence.zig").InstructionSequence;
 const Instruction = @import("instruction_sequence.zig").Instruction;
@@ -160,7 +161,7 @@ pub const Parser = struct {
         return result_lhs;
     }
 
-    //constant, string, negation, opening bracket, formula, reference, range
+    //constant, string, negation, opening bracket, function, reference, range
     fn Layer00(this: *@This(), arg_count: *usize) Error!?ParserToken {
         if (this.current_token) |token_operand| {
             switch (token_operand.token_type) {
@@ -227,13 +228,13 @@ pub const Parser = struct {
                     return null;
                 },
 
-                //FORMULA
-                TokenType.formula => {
+                //FUNCTION
+                TokenType.function => {
 
-                    //temp, until the lexer delivers the formula
-                    const formula = token_operand.token;
+                    //temp, until the lexer delivers the function
+                    const function = token_operand.token;
 
-                    this.consumeToken(); //formula
+                    this.consumeToken(); //function
                     this.consumeToken(); //opening bracket
 
                     var this_arg_count: usize = 0;
@@ -257,8 +258,8 @@ pub const Parser = struct {
                     
                     usizeToString(this_arg_count, &parser_token.token);
 
-                    //temp, until the lexer delivers the formula
-                    if (formula[0] == 'S' and formula[1] == 'U' and formula[2] == 'M') {
+                    //temp, until the lexer delivers the function
+                    if (function[0] == 'S' and function[1] == 'U' and function[2] == 'M') {
                         try parser_token.pushBackPayload(Instructions.f_sum);
                     }
 
@@ -275,22 +276,6 @@ pub const Parser = struct {
                     this.consumeToken();
                     arg_count.* += 1;
                     return parser_token;
-                },
-
-                //RANGE
-                TokenType.range => {
-                    const reference_list = try unwrapRange(&token_operand.token);
-
-                    for (reference_list.items) |reference| {
-                        var parser_token = ParserToken{.token_type = TokenType.reference};
-                        @memcpy(parser_token.token[0..10], reference[0..]);
-                        try parser_token.pushBackPayload(Instructions.resolve_reference);
-                        try this.instruction_sequence.triggerStackSequenceUnary(&parser_token);
-                        arg_count.* += 1;
-                    }
-
-                    this.consumeToken();
-                    return null;
                 },
 
                 else => {
@@ -407,7 +392,8 @@ test "brackets" {
     try compareSolutionToinstrSeq(&solution, &instruction_sequence);
 }
 
-test "reference" {
+test "references" {
+
     const instruction_sequence = try testingGetInstructionSequence("100+F7*20");
     defer instruction_sequence.instruction_list.deinit();
 
@@ -427,36 +413,7 @@ test "reference" {
     try compareSolutionToinstrSeq(&solution, &instruction_sequence);
 }
 
-test "unroll range" {
-    const instruction_sequence = try testingGetInstructionSequence("A100:B102");
-    defer instruction_sequence.instruction_list.deinit();
-
-    var solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.reference } },
-        Instruction{ .single_instruction = Instructions.resolve_reference },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.reference } },
-        Instruction{ .single_instruction = Instructions.resolve_reference },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.reference } },
-        Instruction{ .single_instruction = Instructions.resolve_reference },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.reference } },
-        Instruction{ .single_instruction = Instructions.resolve_reference },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.reference } },
-        Instruction{ .single_instruction = Instructions.resolve_reference },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.reference } },
-        Instruction{ .single_instruction = Instructions.resolve_reference },
-    };
-
-    @memcpy(solution[0].stack_operation.token[0..4], "A100");
-    @memcpy(solution[2].stack_operation.token[0..4], "A101");
-    @memcpy(solution[4].stack_operation.token[0..4], "A102");
-    @memcpy(solution[6].stack_operation.token[0..4], "B100");
-    @memcpy(solution[8].stack_operation.token[0..4], "B101");
-    @memcpy(solution[10].stack_operation.token[0..4], "B102");
-
-    try compareSolutionToinstrSeq(&solution, &instruction_sequence);
-}
-
-test "formula 1" {
+test "function 1" {
     const instruction_sequence = try testingGetInstructionSequence("SUM(A1:B2,R5)");
     defer instruction_sequence.instruction_list.deinit();
 
@@ -487,7 +444,7 @@ test "formula 1" {
     try compareSolutionToinstrSeq(&solution, &instruction_sequence);
 }
 
-test "formula 2" {
+test "function 2" {
     const instruction_sequence = try testingGetInstructionSequence("SUM(A1,Z51,2024,SUM(B1,B2))");
     defer instruction_sequence.instruction_list.deinit();
 
@@ -626,9 +583,27 @@ fn compareSolutionToinstrSeq(solution: []Instruction, instruction_sequence: *con
     for (solution, instruction_sequence.*.instruction_list.items) |sol, itm| {
         switch (sol) {
             InstructionType.single_instruction => {
+                const debug1 = sol.single_instruction;
+                const debug2 = itm.single_instruction;
+
+                _ = debug1;
+                _ = debug2;    
+
                 try std.testing.expect(sol.single_instruction == itm.single_instruction);
             },
             InstructionType.stack_operation => {
+
+                const debugA = sol.stack_operation.instruction;
+                const debugB = itm.stack_operation.instruction;    
+
+                const debug3 = sol.stack_operation.token[0..];
+                const debug4 = itm.stack_operation.token[0..];
+
+                _ = debugA;
+                _ = debugB;
+                _ = debug3;
+                _ = debug4;
+
                 try std.testing.expect(sol.stack_operation.instruction == itm.stack_operation.instruction);
                 try std.testing.expect(std.mem.eql(u8, sol.stack_operation.token[0..], itm.stack_operation.token[0..]));
             },
@@ -645,7 +620,7 @@ fn printInstructionSequence(instruction_sequence: *const InstructionSequence) vo
                 std.debug.print("{s}\n", .{@tagName(value.single_instruction)});
             },
             InstructionType.stack_operation => {
-                std.debug.print("{s} {s}\n", .{ @tagName(value.stack_operation.instruction), extractToken(&value.stack_operation.token.token) });
+                std.debug.print("{s} {s}\n", .{ @tagName(value.stack_operation.instruction), extractToken(&value.stack_operation.token) });
             },
         }
     }

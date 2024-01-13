@@ -1,4 +1,5 @@
 const std = @import("std");
+const Function = @import("functions.zig").Function;
 
 const Errors = error{
     token_exceeds_max_token_size,
@@ -35,11 +36,28 @@ pub const TokenType = enum {
     pound,
     at,
 
-    formula,
+    function,
     reference,
     range,
+    boolean,
 
     string,
+};
+
+const DataTypes = enum {
+    number,
+    string,
+    boolean,
+    reference,
+    function,
+};
+
+const DataType = union(DataTypes) {
+    number: f64,
+    string: []const u8,
+    boolean: bool,
+    reference: struct { row: usize, column: usize }, //to be implemented
+    function: Function,
 };
 
 pub const LexerToken = struct {
@@ -47,6 +65,7 @@ pub const LexerToken = struct {
     token: [MAX_TOKEN_SIZE]u8 = [_]u8{0} ** MAX_TOKEN_SIZE, //for debugging purposes
     token_type: TokenType = undefined,
     valid_token: bool = true,
+    data_type: ?DataType = null,
 
     pub fn insertCharacterAndTokenType(this: *@This(), character: u8, ttype: TokenType) !void {
         this.insertTokenType(ttype);
@@ -64,7 +83,46 @@ pub const LexerToken = struct {
     pub fn insertTokenType(this: *@This(), ttype: TokenType) void {
         this.token_type = ttype;
     }
+
+    pub fn extractDataType(this: *@This()) !void {
+        const data_type = getDataType(this.token_type);
+        const slice_of_token = extractToken(&this.token);
+        if (data_type) |d_type| {
+            switch (d_type) {
+                DataTypes.number => {
+                  const number: f64 = try std.fmt.parseFloat(f64, slice_of_token);
+                  this.data_type = DataType{.number = number};  
+                },
+                DataTypes.string => {
+                },
+                DataTypes.boolean => {
+                    const bool_value = std.mem.eql(u8, slice_of_token, "TRUE"[0..]);
+                    this.data_type = DataType{.boolean = bool_value};
+                },
+                DataTypes.reference => {
+                    
+                },
+                DataTypes.function => {},
+            }
+        }
+    }
 };
+
+const token_type_data_type_mapping = makeTokenTypeDataTypeMapping();
+
+fn makeTokenTypeDataTypeMapping() [@typeInfo(TokenType).Enum.fields.len]?DataTypes {
+    var mapping = [_]?DataTypes{null} ** @typeInfo(TokenType).Enum.fields.len;
+    mapping[@intFromEnum(TokenType.constant)] = DataTypes.number;
+    mapping[@intFromEnum(TokenType.string)] = DataTypes.string;
+    mapping[@intFromEnum(TokenType.boolean)] = DataTypes.boolean;
+    mapping[@intFromEnum(TokenType.reference)] = DataTypes.reference;
+    mapping[@intFromEnum(TokenType.formula)] = DataTypes.function;
+
+    return mapping;
+}
+fn getDataType(token_type: TokenType) ?DataTypes {
+    return token_type_data_type_mapping[@intFromEnum(token_type)];
+}
 
 pub fn extractToken(token: *const [MAX_TOKEN_SIZE]u8) []const u8 {
     var index: usize = 0;
