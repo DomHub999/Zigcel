@@ -1,6 +1,9 @@
 const std = @import("std");
 const Function = @import("functions.zig").Function;
 
+const ROW_CHARACTERS = @import("range_unwrap.zig").ROW_CHARACTERS;
+const numberFromCol = @import("range_unwrap.zig").numberFromCol;
+
 const Errors = error{
     token_exceeds_max_token_size,
 };
@@ -100,7 +103,10 @@ pub const LexerToken = struct {
                     this.data_type = DataType{.boolean = bool_value};
                 },
                 DataTypes.reference => {
-                    
+                    // const row_idx = std.mem.indexOfAny(u8, slice_of_token, ROW_CHARACTERS);
+                    // const row = std.fmt.parseInt(usize, slice_of_token[row_idx..], 0);
+                    // const col = numberFromCol(col: *const [3]u8, len: usize)    
+
                 },
                 DataTypes.function => {},
             }

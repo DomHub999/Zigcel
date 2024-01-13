@@ -15,15 +15,17 @@
 
 const std = @import("std");
 const print = @import("std").debug.print;
+const ROW_CHARACTERS = @import("range_unwrap.zig").ROW_CHARACTERS;
 pub fn main() !void {
 
 
-  const f = try std.fmt.parseFloat(f64, "100"[0..]);
-  const f2:f64 = 0.0;
-  const result = f - f2;
+//   const f = try std.fmt.parseFloat(f64, "100"[0..]);
+//   const f2:f64 = 0.0;
+//   const result = f - f2;
 
 
-print("{}", .{result});
+
   
-
+ const row_idx = std.mem.indexOfAny(u8, "A100"[0..], ROW_CHARACTERS) orelse 0;
+ print("{}", .{row_idx});
 }

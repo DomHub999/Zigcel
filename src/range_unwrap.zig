@@ -86,12 +86,12 @@ fn rangeToReferences(indiv_parts: *const IndividualParts, reference_list: *Refer
     }
 }
 
+pub const ROW_CHARACTERS = "0123456789";
 fn calcDelimiters(range: []const u8) !DelimPositions {
-    const row_characters = "0123456789";
 
     const range_delim_idx = std.mem.indexOf(u8, range, ":"[0..]) orelse return Error.rangeunwrapper_range_colon_divisor_na;
-    const idx_left = std.mem.indexOfAny(u8, range[0..range_delim_idx], row_characters[0..]) orelse return Error.rangeunwrapper_no_row_part_in_range;
-    const idx_right = std.mem.indexOfAny(u8, range[range_delim_idx + 1 ..], row_characters[0..]) orelse return Error.rangeunwrapper_no_row_part_in_range;
+    const idx_left = std.mem.indexOfAny(u8, range[0..range_delim_idx], ROW_CHARACTERS[0..]) orelse return Error.rangeunwrapper_no_row_part_in_range;
+    const idx_right = std.mem.indexOfAny(u8, range[range_delim_idx + 1 ..], ROW_CHARACTERS[0..]) orelse return Error.rangeunwrapper_no_row_part_in_range;
 
     const right_row_start = range_delim_idx + idx_right + 1;
     var right_row_end: usize = right_row_start;
@@ -149,7 +149,7 @@ fn upperCharacterToNum(chara: u8) usize {
 }
 
 const ALPHABET_NUM_CHARA: usize = 26;
-fn numberFromCol(col: *const [3]u8, len: usize) usize {
+pub fn numberFromCol(col: *const [3]u8, len: usize) usize {
     var this_length = len;
     var result: usize = 0;
     var iteration: usize = 0;
