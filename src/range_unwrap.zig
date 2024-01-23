@@ -52,9 +52,9 @@ pub fn unwrapRange(range: []const u8) !ReferenceList {
     return reference_list;
 }
 
-fn rangeToReferences(indiv_parts: *const IndividualParts, reference_list: *ReferenceList) !void {
-    const left_col_numeric = numberFromCol(&indiv_parts.left_col, indiv_parts.left_col_len);
-    const right_col_numeric = numberFromCol(&indiv_parts.right_col, indiv_parts.right_col_len);
+fn rangeToReferences(indiv_parts: *const IndividualParts, reference_list: *ReferenceList)!void {
+    const left_col_numeric = numberFromCol(indiv_parts.left_col[0..], indiv_parts.left_col_len);
+    const right_col_numeric = numberFromCol(indiv_parts.right_col[0..], indiv_parts.right_col_len);
 
     for (left_col_numeric..right_col_numeric + 1) |col_num| {
         for (indiv_parts.left_row..indiv_parts.right_row + 1) |row_num| {
@@ -149,7 +149,7 @@ fn upperCharacterToNum(chara: u8) usize {
 }
 
 const ALPHABET_NUM_CHARA: usize = 26;
-pub fn numberFromCol(col: *const [3]u8, len: usize) usize {
+    pub fn numberFromCol(col:[] const u8, len:usize)usize{
     var this_length = len;
     var result: usize = 0;
     var iteration: usize = 0;

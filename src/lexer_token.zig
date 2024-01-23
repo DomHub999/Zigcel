@@ -4,8 +4,11 @@ const Function = @import("functions.zig").Function;
 const ROW_CHARACTERS = @import("range_unwrap.zig").ROW_CHARACTERS;
 const numberFromCol = @import("range_unwrap.zig").numberFromCol;
 
+const getFunction = @import("functions.zig").getFunction;
+
 const Errors = error{
     token_exceeds_max_token_size,
+    lexer_token_corrupt_reference,
 };
 
 pub const MAX_TOKEN_SIZE: usize = 20;
@@ -103,12 +106,15 @@ pub const LexerToken = struct {
                     this.data_type = DataType{.boolean = bool_value};
                 },
                 DataTypes.reference => {
-                    // const row_idx = std.mem.indexOfAny(u8, slice_of_token, ROW_CHARACTERS);
-                    // const row = std.fmt.parseInt(usize, slice_of_token[row_idx..], 0);
-                    // const col = numberFromCol(col: *const [3]u8, len: usize)    
-
+                    const row_idx = std.mem.indexOfAny(u8, slice_of_token, ROW_CHARACTERS)  orelse return Errors.lexer_token_corrupt_reference;
+                    const row = try std.fmt.parseInt(usize, slice_of_token[row_idx..], 0);
+                    const col = numberFromCol(slice_of_token[0..row_idx], row_idx);
+                    this.data_type = DataType{.reference = .{.row = row, .col = col }};    
                 },
-                DataTypes.function => {},
+                DataTypes.function => {
+                    const function = try getFunction(slice_of_token);
+                    this.data_type = DataType{.function = function};
+                },
             }
         }
     }

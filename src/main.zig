@@ -12,6 +12,8 @@
 //token: extraction functions for actual values
 //parser: make "parser token" payload heap memory
 //rename function to formula
+// unit test for floating point number
+// unit test for boolean literals
 
 const std = @import("std");
 const print = @import("std").debug.print;
@@ -26,6 +28,28 @@ pub fn main() !void {
 
 
   
- const row_idx = std.mem.indexOfAny(u8, "A100"[0..], ROW_CHARACTERS) orelse 0;
- print("{}", .{row_idx});
+//  const row_idx = std.mem.indexOfAny(u8, "A100"[0..], ROW_CHARACTERS) orelse 0;
+//  print("{}", .{row_idx});
+
+// const enum_fields = @typeInfo(e).Enum.fields;
+// for (enum_fields) |value| {
+//     print("{s}", .{value});
+// }
+
+var tab = [_]u8{0}**100;
+modifyTab(&tab);
+print("{}", .{tab[0]});
+
 }
+
+// const e = enum{
+//     a,
+//     b,
+//     c,
+// };
+
+fn modifyTab(tab:[]u8)void{
+    tab[0] = 111;
+}
+
+

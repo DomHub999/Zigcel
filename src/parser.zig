@@ -583,27 +583,9 @@ fn compareSolutionToinstrSeq(solution: []Instruction, instruction_sequence: *con
     for (solution, instruction_sequence.*.instruction_list.items) |sol, itm| {
         switch (sol) {
             InstructionType.single_instruction => {
-                const debug1 = sol.single_instruction;
-                const debug2 = itm.single_instruction;
-
-                _ = debug1;
-                _ = debug2;    
-
                 try std.testing.expect(sol.single_instruction == itm.single_instruction);
             },
             InstructionType.stack_operation => {
-
-                const debugA = sol.stack_operation.instruction;
-                const debugB = itm.stack_operation.instruction;    
-
-                const debug3 = sol.stack_operation.token[0..];
-                const debug4 = itm.stack_operation.token[0..];
-
-                _ = debugA;
-                _ = debugB;
-                _ = debug3;
-                _ = debug4;
-
                 try std.testing.expect(sol.stack_operation.instruction == itm.stack_operation.instruction);
                 try std.testing.expect(std.mem.eql(u8, sol.stack_operation.token[0..], itm.stack_operation.token[0..]));
             },
