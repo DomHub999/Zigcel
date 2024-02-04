@@ -12,14 +12,16 @@ const token_list_type = @import("lexer_token.zig").token_list_type;
 const makeTokenListIterator = @import("lexer_token.zig").TokenListIterator.makeTokenListIterator;
 const createParserTokenFromLexTok = @import("parser_token.zig").ParserToken.createParserTokenFromLexTok;
 const extractToken = @import("lexer_token.zig").extractToken;
+const DataType = @import("lexer_token.zig").DataType;
+const DataTypes = @import("lexer_token.zig").DataTypes;
 
 const lex = @import("lexer.zig").lex;
-
 
 const InstructionSequence = @import("instruction_sequence.zig").InstructionSequence;
 const Instruction = @import("instruction_sequence.zig").Instruction;
 const Instructions = @import("instruction_sequence.zig").Instructions;
 const InstructionType = @import("instruction_sequence.zig").InstructionType;
+const execInstruction = @import("instruction_sequence.zig").execInstruction;
 
 const ParserToken = @import("parser_token.zig").ParserToken;
 
@@ -51,7 +53,7 @@ pub const Parser = struct {
     pub fn parse(this: *@This()) !InstructionSequence {
         this.consumeToken();
         var arg_count: usize = 0;
-        try this.Layer05(&arg_count);
+        try this.outerLayer(&arg_count);
         return this.instruction_sequence;
     }
 
@@ -67,27 +69,27 @@ pub const Parser = struct {
     }
 
     //comparison =, >, <, >=, <=, <>
-    fn Layer05(this: *@This(), arg_count: *usize) !void {
-        var result_lhs = try this.Layer04(arg_count);
+    fn outerLayer(this: *@This(), arg_count: *usize) !void {
+        var result_lhs = try this.layer04(arg_count);
 
         if (this.current_token) |token_operator| {
             while (token_operator.token_type == TokenType.equal_sign) {
-                try this.callToUnderlLayer(Instructions.equal, &result_lhs, Parser.Layer04, arg_count);
+                try this.callToUnderlLayer(Instructions.equal, &result_lhs, Parser.layer04, arg_count);
             }
             while (token_operator.token_type == TokenType.greater_than_sign) {
-                try this.callToUnderlLayer(Instructions.greaterThan, &result_lhs, Parser.Layer04, arg_count);
+                try this.callToUnderlLayer(Instructions.greaterThan, &result_lhs, Parser.layer04, arg_count);
             }
             while (token_operator.token_type == TokenType.less_than_sign) {
-                try this.callToUnderlLayer(Instructions.lessThan, &result_lhs, Parser.Layer04, arg_count);
+                try this.callToUnderlLayer(Instructions.lessThan, &result_lhs, Parser.layer04, arg_count);
             }
             while (token_operator.token_type == TokenType.greater_equal_to_sign) {
-                try this.callToUnderlLayer(Instructions.greaterEqualThan, &result_lhs, Parser.Layer04, arg_count);
+                try this.callToUnderlLayer(Instructions.greaterEqualThan, &result_lhs, Parser.layer04, arg_count);
             }
             while (token_operator.token_type == TokenType.less_equal_to_sign) {
-                try this.callToUnderlLayer(Instructions.lessEqualThan, &result_lhs, Parser.Layer04, arg_count);
+                try this.callToUnderlLayer(Instructions.lessEqualThan, &result_lhs, Parser.layer04, arg_count);
             }
             while (token_operator.token_type == TokenType.not_equal_to_sign) {
-                try this.callToUnderlLayer(Instructions.notEqualTo, &result_lhs, Parser.Layer04, arg_count);
+                try this.callToUnderlLayer(Instructions.notEqualTo, &result_lhs, Parser.layer04, arg_count);
             }
         }
 
@@ -98,12 +100,12 @@ pub const Parser = struct {
     }
 
     //concatenation &
-    fn Layer04(this: *@This(), arg_count: *usize) Error!?ParserToken {
-        var result_lhs = try this.Layer03(arg_count);
+    fn layer04(this: *@This(), arg_count: *usize) Error!?ParserToken {
+        var result_lhs = try this.layer03(arg_count);
 
         if (this.current_token) |token_operator| {
             while (token_operator.token_type == TokenType.ampersand) {
-                try this.callToUnderlLayer(Instructions.concat_strings, &result_lhs, Parser.Layer03, arg_count);
+                try this.callToUnderlLayer(Instructions.concat_strings, &result_lhs, Parser.layer03, arg_count);
                 return null;
             }
         }
@@ -112,16 +114,16 @@ pub const Parser = struct {
     }
 
     //addition and subtraction +,-
-    fn Layer03(this: *@This(), arg_count: *usize) Error!?ParserToken {
-        var result_lhs = try this.Layer02(arg_count);
+    fn layer03(this: *@This(), arg_count: *usize) Error!?ParserToken {
+        var result_lhs = try this.layer02(arg_count);
 
         if (this.current_token) |token_operator| {
             while (token_operator.token_type == TokenType.plus) {
-                try this.callToUnderlLayer(Instructions.add, &result_lhs, Parser.Layer02, arg_count);
+                try this.callToUnderlLayer(Instructions.add, &result_lhs, Parser.layer02, arg_count);
                 return null;
             }
             while (token_operator.token_type == TokenType.minus) {
-                try this.callToUnderlLayer(Instructions.subtract, &result_lhs, Parser.Layer02, arg_count);
+                try this.callToUnderlLayer(Instructions.subtract, &result_lhs, Parser.layer02, arg_count);
                 return null;
             }
         }
@@ -130,16 +132,16 @@ pub const Parser = struct {
     }
 
     //multiplication and division *,/
-    fn Layer02(this: *@This(), arg_count: *usize) Error!?ParserToken {
-        var result_lhs = try this.Layer01(arg_count);
+    fn layer02(this: *@This(), arg_count: *usize) Error!?ParserToken {
+        var result_lhs = try this.layer01(arg_count);
 
         if (this.current_token) |token_operator| {
             while (token_operator.token_type == TokenType.asterisk) {
-                try this.callToUnderlLayer(Instructions.multiply, &result_lhs, Parser.Layer01, arg_count);
+                try this.callToUnderlLayer(Instructions.multiply, &result_lhs, Parser.layer01, arg_count);
                 return null;
             }
             while (token_operator.token_type == TokenType.forward_slash) {
-                try this.callToUnderlLayer(Instructions.divide, &result_lhs, Parser.Layer01, arg_count);
+                try this.callToUnderlLayer(Instructions.divide, &result_lhs, Parser.layer01, arg_count);
                 return null;
             }
         }
@@ -148,12 +150,12 @@ pub const Parser = struct {
     }
 
     //exponentiation ^
-    fn Layer01(this: *@This(), arg_count: *usize) Error!?ParserToken {
-        var result_lhs = try this.Layer00(arg_count);
+    fn layer01(this: *@This(), arg_count: *usize) Error!?ParserToken {
+        var result_lhs = try this.layer00(arg_count);
 
         if (this.current_token) |token_operator| {
             while (token_operator.token_type == TokenType.caret) {
-                try this.callToUnderlLayer(Instructions.to_the_power_of, &result_lhs, Parser.Layer00, arg_count);
+                try this.callToUnderlLayer(Instructions.to_the_power_of, &result_lhs, Parser.layer00, arg_count);
                 return null;
             }
         }
@@ -162,7 +164,7 @@ pub const Parser = struct {
     }
 
     //constant, string, negation, opening bracket, function, reference, range
-    fn Layer00(this: *@This(), arg_count: *usize) Error!?ParserToken {
+    fn layer00(this: *@This(), arg_count: *usize) Error!?ParserToken {
         if (this.current_token) |token_operand| {
             switch (token_operand.token_type) {
 
@@ -200,7 +202,7 @@ pub const Parser = struct {
                     }
 
                     if (this.current_token) |operand_negate| {
-                        parser_token.copyAttributesFromLexTok(operand_negate);    
+                        parser_token.copyAttributesFromLexTok(operand_negate);
                         this.consumeToken();
                     } else {
                         return Error.parser_no_operand_to_negate_available;
@@ -214,7 +216,7 @@ pub const Parser = struct {
                 //OPENING BRACKET
                 TokenType.bracket_open => {
                     this.consumeToken();
-                    try this.Layer05(arg_count);
+                    try this.outerLayer(arg_count);
                     if (this.current_token) |token| {
                         if (token.token_type == TokenType.bracket_close) {
                             this.consumeToken();
@@ -232,7 +234,7 @@ pub const Parser = struct {
                 TokenType.function => {
 
                     //temp, until the lexer delivers the function
-                    const function = token_operand.token;
+                    const function = token_operand.*;
 
                     this.consumeToken(); //function
                     this.consumeToken(); //opening bracket
@@ -243,7 +245,7 @@ pub const Parser = struct {
                         if (this.current_token.?.token_type == TokenType.argument_deliminiter) {
                             this.consumeToken();
                         } else {
-                            try this.Layer05(&this_arg_count);
+                            try this.outerLayer(&this_arg_count);
                         }
                     }
 
@@ -253,18 +255,18 @@ pub const Parser = struct {
                         return Error.parser_closing_bracket_expected;
                     }
 
-                    var parser_token = ParserToken{};
-                    parser_token.token_type = TokenType.constant;
+                    //push number of arguments on the stack
+                    var parser_token_args = ParserToken{.token_type = TokenType.constant};
+                    usizeToString(this_arg_count, &parser_token_args.token); //for debugging
+                    try this.instruction_sequence.triggerStackSequenceUnary(&parser_token_args);
+
+                    //push the function on the stack
+                    const parser_token_func = createParserTokenFromLexTok(&function);
+                    try this.instruction_sequence.triggerStackSequenceUnary(&parser_token_func);
+
+                    //call the function   
+                    try this.instruction_sequence.execInstruction(Instructions.call_function);
                     
-                    usizeToString(this_arg_count, &parser_token.token);
-
-                    //temp, until the lexer delivers the function
-                    if (function[0] == 'S' and function[1] == 'U' and function[2] == 'M') {
-                        try parser_token.pushBackPayload(Instructions.f_sum);
-                    }
-
-                    try this.instruction_sequence.triggerStackSequenceUnary(&parser_token);
-
                     arg_count.* += 1;
                     return null;
                 },
@@ -300,15 +302,17 @@ pub const Parser = struct {
 };
 
 test "division/multiplication and addition precendence" {
-    const instruction_sequence = try testingGetInstructionSequence("100/50+10*20");
+    var string_pool = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer string_pool.deinit();
+    const instruction_sequence = try testingGetInstructionSequence("100/50+10*20", &string_pool);
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant  } },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant  } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{.number = 100 } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{.number = 50 } } },
         Instruction{ .single_instruction = Instructions.divide },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant  } },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant  } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{.number = 10 } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{.number = 20 } } },
         Instruction{ .single_instruction = Instructions.multiply },
         Instruction{ .single_instruction = Instructions.add },
     };
@@ -322,12 +326,14 @@ test "division/multiplication and addition precendence" {
 }
 
 test "strings" {
-    const instruction_sequence = try testingGetInstructionSequence("\"abc\"&\"def\"");
+    var string_pool = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer string_pool.deinit();
+    const instruction_sequence = try testingGetInstructionSequence("\"abc\"&\"def\"", &string_pool);
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.string  } },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.string  } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.string } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.string } },
         Instruction{ .single_instruction = Instructions.concat_strings },
     };
 
@@ -338,13 +344,15 @@ test "strings" {
 }
 
 test "negate/percent/power 1" {
-    const instruction_sequence = try testingGetInstructionSequence("-10^300%");
+    var string_pool = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer string_pool.deinit();
+    const instruction_sequence = try testingGetInstructionSequence("-10^300%", &string_pool);
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant  } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant } },
         Instruction{ .single_instruction = Instructions.negate },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant  } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant } },
         Instruction{ .single_instruction = Instructions.percent_of },
         Instruction{ .single_instruction = Instructions.to_the_power_of },
     };
@@ -356,12 +364,14 @@ test "negate/percent/power 1" {
 }
 
 test "negate/percent/power 2" {
-    const instruction_sequence = try testingGetInstructionSequence("10^-300%");
+    var string_pool = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer string_pool.deinit();
+    const instruction_sequence = try testingGetInstructionSequence("10^-300%", &string_pool);
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant  } },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant  } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant } },
         Instruction{ .single_instruction = Instructions.negate },
         Instruction{ .single_instruction = Instructions.percent_of },
         Instruction{ .single_instruction = Instructions.to_the_power_of },
@@ -374,14 +384,16 @@ test "negate/percent/power 2" {
 }
 
 test "brackets" {
-    const instruction_sequence = try testingGetInstructionSequence("50*(7-3)");
+    var string_pool = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer string_pool.deinit();
+    const instruction_sequence = try testingGetInstructionSequence("50*(7-3)", &string_pool);
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant  } },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant  } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant } },
         Instruction{ .single_instruction = Instructions.subtract },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant  } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant } },
         Instruction{ .single_instruction = Instructions.multiply },
     };
 
@@ -393,16 +405,17 @@ test "brackets" {
 }
 
 test "references" {
-
-    const instruction_sequence = try testingGetInstructionSequence("100+F7*20");
+    var string_pool = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer string_pool.deinit();
+    const instruction_sequence = try testingGetInstructionSequence("100+F7*20", &string_pool);
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.reference  } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.reference } },
         Instruction{ .single_instruction = Instructions.resolve_reference },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant  } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant } },
         Instruction{ .single_instruction = Instructions.multiply },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant  } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant } },
         Instruction{ .single_instruction = Instructions.add },
     };
 
@@ -414,7 +427,9 @@ test "references" {
 }
 
 test "function 1" {
-    const instruction_sequence = try testingGetInstructionSequence("SUM(A1:B2,R5)");
+    var string_pool = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer string_pool.deinit();
+    const instruction_sequence = try testingGetInstructionSequence("SUM(A1:B2,R5)", &string_pool);
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
@@ -445,7 +460,9 @@ test "function 1" {
 }
 
 test "function 2" {
-    const instruction_sequence = try testingGetInstructionSequence("SUM(A1,Z51,2024,SUM(B1,B2))");
+    var string_pool = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer string_pool.deinit();
+    const instruction_sequence = try testingGetInstructionSequence("SUM(A1,Z51,2024,SUM(B1,B2))", &string_pool);
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
@@ -480,7 +497,9 @@ test "function 2" {
 }
 
 test "negation sequence" {
-    const instruction_sequence = try testingGetInstructionSequence("1+-----5");
+    var string_pool = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer string_pool.deinit();
+    const instruction_sequence = try testingGetInstructionSequence("1+-----5", &string_pool);
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
@@ -501,7 +520,9 @@ test "negation sequence" {
 }
 
 test "addition and negation" {
-    const instruction_sequence = try testingGetInstructionSequence("5+-9%");
+    var string_pool = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer string_pool.deinit();
+    const instruction_sequence = try testingGetInstructionSequence("5+-9%", &string_pool);
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
@@ -519,7 +540,9 @@ test "addition and negation" {
 }
 
 test "division 1" {
-    const instruction_sequence = try testingGetInstructionSequence("10/5");
+    var string_pool = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer string_pool.deinit();
+    const instruction_sequence = try testingGetInstructionSequence("10/5", &string_pool);
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
@@ -535,7 +558,9 @@ test "division 1" {
 }
 
 test "division 2" {
-    const instruction_sequence = try testingGetInstructionSequence("10/-5");
+    var string_pool = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer string_pool.deinit();
+    const instruction_sequence = try testingGetInstructionSequence("10/-5", &string_pool);
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
@@ -552,7 +577,9 @@ test "division 2" {
 }
 
 test "division 3" {
-    const instruction_sequence = try testingGetInstructionSequence("91%/-8");
+    var string_pool = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer string_pool.deinit();
+    const instruction_sequence = try testingGetInstructionSequence("91%/-8", &string_pool);
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
@@ -569,8 +596,8 @@ test "division 3" {
     try compareSolutionToinstrSeq(&solution, &instruction_sequence);
 }
 
-fn testingGetInstructionSequence(source: [*:0]const u8) !InstructionSequence {
-    const token_list = try lex(source);
+fn testingGetInstructionSequence(source: [*:0]const u8, string_pool: *std.heap.ArenaAllocator) !InstructionSequence {
+    const token_list = try lex(source, string_pool);
     var token_list_iterator = makeTokenListIterator(token_list);
     defer token_list_iterator.drop();
 
@@ -588,6 +615,34 @@ fn compareSolutionToinstrSeq(solution: []Instruction, instruction_sequence: *con
             InstructionType.stack_operation => {
                 try std.testing.expect(sol.stack_operation.instruction == itm.stack_operation.instruction);
                 try std.testing.expect(std.mem.eql(u8, sol.stack_operation.token[0..], itm.stack_operation.token[0..]));
+
+                if (sol.stack_operation.data_type != null) {
+
+                        const sol_dt = sol.stack_operation.data_type.?;
+                        const itm_dt = itm.stack_operation.data_type.?;
+
+                        switch (sol.stack_operation.data_type.?) {
+                               DataTypes.boolean =>  {
+                                    try std.testing.expect(sol_dt.boolean == itm_dt.boolean);
+                               },
+                               DataTypes.function => {
+                                    try std.testing.expect(sol_dt.function == itm_dt.function);
+                               },
+                               DataTypes.number => {
+                                    try std.testing.expect(sol_dt.number == itm_dt.number);
+                               },
+                               DataTypes.reference => {
+                                    try std.testing.expect(sol_dt.reference.column == itm_dt.reference.column and sol_dt.reference.row == itm_dt.reference.row);
+                               },
+                               DataTypes.string => {
+                                    try std.testing.expect(std.mem.eql(u8, sol_dt.string, itm_dt.string));
+                               },
+                        }
+
+                } else {
+                    try std.testing.expect(itm.stack_operation.data_type == null);    
+                }
+
             },
         }
     }
@@ -603,6 +658,10 @@ fn printInstructionSequence(instruction_sequence: *const InstructionSequence) vo
             },
             InstructionType.stack_operation => {
                 std.debug.print("{s} {s}\n", .{ @tagName(value.stack_operation.instruction), extractToken(&value.stack_operation.token) });
+
+                //if (value.stack_operation.data_type) || {}
+
+
             },
         }
     }

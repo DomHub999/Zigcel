@@ -1,6 +1,8 @@
 const LexerToken = @import("lexer_token.zig").LexerToken;
 const MAX_TOKEN_SIZE = @import("lexer_token.zig").MAX_TOKEN_SIZE;
 const TokenType = @import("lexer_token.zig").TokenType;
+const DataType = @import("lexer_token.zig").DataType;
+
 const InstructionSequence = @import("instruction_sequence.zig").InstructionSequence;
 const Instructions = @import("instruction_sequence.zig").Instructions;
 
@@ -14,15 +16,17 @@ pub const ParserToken = struct {
     token_type: TokenType = undefined,
     payload: [NUMBER_OF_PAYLOADS]?Instructions = [_]?Instructions{null} ** NUMBER_OF_PAYLOADS,
     idx_payload: usize = 0,
+    data_type: ?DataType = null,
 
-    pub fn createParserTokenFromLexTok(lexer_token: *LexerToken) @This() {
-        const parser_token = ParserToken{ .token = lexer_token.token, .token_type = lexer_token.token_type };
+    pub fn createParserTokenFromLexTok(lexer_token: *const LexerToken) @This() {
+        const parser_token = ParserToken{ .token = lexer_token.token, .token_type = lexer_token.token_type, .data_type = lexer_token.data_type };
         return parser_token;
     }
 
     pub fn copyAttributesFromLexTok(this: *@This(), lexer_token: *LexerToken) void {
         this.token = lexer_token.token;
         this.token_type = lexer_token.token_type;
+        this.data_type = lexer_token.data_type;
     }
 
     pub fn pushBackPayload(this: *@This(), inststruction: Instructions) !void {

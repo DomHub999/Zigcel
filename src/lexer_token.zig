@@ -7,11 +7,12 @@ const numberFromCol = @import("range_unwrap.zig").numberFromCol;
 const getFunction = @import("functions.zig").getFunction;
 
 const Errors = error{
-    token_exceeds_max_token_size,
+    token_exceeds_max_buffer_size,
     lexer_token_corrupt_reference,
 };
 
 pub const MAX_TOKEN_SIZE: usize = 20;
+const MAX_BUFFER_SIZE: usize = 1024;
 
 pub const token_list_type = std.ArrayList(LexerToken);
 
@@ -26,7 +27,7 @@ pub const TokenType = enum {
     caret,
     bracket_open,
     bracket_close,
-    constant,
+    
 
     equal_sign,
     greater_than_sign,
@@ -42,15 +43,15 @@ pub const TokenType = enum {
     pound,
     at,
 
+    constant,
     function,
     reference,
     range,
     boolean,
-
     string,
 };
 
-const DataTypes = enum {
+pub const DataTypes = enum {
     number,
     string,
     boolean,
@@ -58,13 +59,18 @@ const DataTypes = enum {
     function,
 };
 
-const DataType = union(DataTypes) {
+pub const DataType = union(DataTypes) {
     number: f64,
     string: []const u8,
     boolean: bool,
     reference: struct { row: usize, column: usize }, //to be implemented
     function: Function,
 };
+
+var buffer: [MAX_BUFFER_SIZE]u8 = [_]u8{0} ** MAX_BUFFER_SIZE;
+fn initializeBuffer() void {
+    buffer = [_]u8{0} ** MAX_BUFFER_SIZE;
+}
 
 pub const LexerToken = struct {
     current_chara_num: usize = 0,
@@ -79,41 +85,61 @@ pub const LexerToken = struct {
     }
 
     pub fn insertCharacter(this: *@This(), character: u8) !void {
-        if (this.current_chara_num + 1 == MAX_TOKEN_SIZE) {
-            return Errors.token_exceeds_max_token_size;
+        if (this.current_chara_num + 1 == MAX_BUFFER_SIZE) {
+            return Errors.token_exceeds_max_buffer_size;
         }
-        this.token[this.current_chara_num] = character;
+
+        if (this.current_chara_num == 0) {
+            initializeBuffer();
+        }
+
+        if (this.current_chara_num <= MAX_TOKEN_SIZE) {
+            this.token[this.current_chara_num] = character;
+        }
+
+        buffer[this.current_chara_num] = character;
+
         this.current_chara_num += 1;
+    }
+
+    pub fn insertCharacterString(this: *@This(), character_string: []const u8)!void{
+        for (character_string) |character| {
+            try this.insertCharacter(character);
+        }
     }
 
     pub fn insertTokenType(this: *@This(), ttype: TokenType) void {
         this.token_type = ttype;
     }
 
-    pub fn extractDataType(this: *@This()) !void {
+    pub fn extractDataType(this: *@This(), string_pool: *std.heap.ArenaAllocator) !void {
         const data_type = getDataType(this.token_type);
         const slice_of_token = extractToken(&this.token);
         if (data_type) |d_type| {
             switch (d_type) {
                 DataTypes.number => {
-                  const number: f64 = try std.fmt.parseFloat(f64, slice_of_token);
-                  this.data_type = DataType{.number = number};  
+                    const number: f64 = try std.fmt.parseFloat(f64, slice_of_token);
+                    this.data_type = DataType{ .number = number };
                 },
                 DataTypes.string => {
+                        const string_size = this.current_chara_num + 1;
+                        var string = try string_pool.allocator().alloc(u8, string_size);
+                        @memcpy(string[0..string_size], buffer[0..string_size]);
+                        this.data_type = DataType{.string = string};
                 },
                 DataTypes.boolean => {
                     const bool_value = std.mem.eql(u8, slice_of_token, "TRUE"[0..]);
-                    this.data_type = DataType{.boolean = bool_value};
+                    this.data_type = DataType{ .boolean = bool_value };
                 },
                 DataTypes.reference => {
-                    const row_idx = std.mem.indexOfAny(u8, slice_of_token, ROW_CHARACTERS)  orelse return Errors.lexer_token_corrupt_reference;
+                    const row_idx = std.mem.indexOfAny(u8, slice_of_token, ROW_CHARACTERS) orelse return Errors.lexer_token_corrupt_reference;
                     const row = try std.fmt.parseInt(usize, slice_of_token[row_idx..], 0);
                     const col = numberFromCol(slice_of_token[0..row_idx], row_idx);
-                    this.data_type = DataType{.reference = .{.row = row, .col = col }};    
+                    this.data_type = DataType{ .reference = .{ .row = row, .column = col } };
                 },
                 DataTypes.function => {
                     const function = try getFunction(slice_of_token);
-                    this.data_type = DataType{.function = function};
+                    this.data_type = DataType{ .function = function };
                 },
             }
         }
@@ -128,7 +154,7 @@ fn makeTokenTypeDataTypeMapping() [@typeInfo(TokenType).Enum.fields.len]?DataTyp
     mapping[@intFromEnum(TokenType.string)] = DataTypes.string;
     mapping[@intFromEnum(TokenType.boolean)] = DataTypes.boolean;
     mapping[@intFromEnum(TokenType.reference)] = DataTypes.reference;
-    mapping[@intFromEnum(TokenType.formula)] = DataTypes.function;
+    mapping[@intFromEnum(TokenType.function)] = DataTypes.function;
 
     return mapping;
 }

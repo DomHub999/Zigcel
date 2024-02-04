@@ -16,7 +16,7 @@ const Errors = error{
     lexer_source_size_equals_null,
 };
 
-pub fn lex(source: [*:0]const u8) !token_list_type {
+pub fn lex(source: [*:0]const u8, string_pool: *std.heap.ArenaAllocator) !token_list_type {
     var token_list = token_list_type.init(std.heap.page_allocator);
 
     var current_position: ?usize = 0;
@@ -26,16 +26,21 @@ pub fn lex(source: [*:0]const u8) !token_list_type {
     }
 
     while (current_position) |pos| {
-        const next_token_result = try getNextToken(source, pos, source_size);
+        
+        var next_token_result = try getNextToken(source, pos, source_size);
+        
         const referece_list = try dealWithRange(&next_token_result.token);
+        
         if (referece_list) |list| {
             for (list.items) |reference| {
                 var token = LexerToken{ .token_type = TokenType.reference };
-                @memcpy(token.token[0..REFERENCE_SIZE], reference[0..]);
+                try token.insertCharacterString(reference[0..]);
+                try next_token_result.token.extractDataType(string_pool);
                 try token_list.append(token);
             }
             list.deinit();
         } else {
+            try next_token_result.token.extractDataType(string_pool);
             try token_list.append(next_token_result.token);
         }
 
@@ -69,7 +74,10 @@ fn invalidateUnessecaryTokens(token_list: *token_list_type) void {
 }
 
 test "30*20" {
-    const token_list = try lex("30*20");
+var string_pool =  std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer string_pool.deinit();
+
+    const token_list = try lex("30*20", &string_pool);
     defer token_list.deinit();
 
     try std.testing.expect(std.mem.eql(u8, extractToken(&token_list.items[0].token), "30"[0..]));
@@ -79,8 +87,11 @@ test "30*20" {
 
 test "(50 * 40 )-20" {
     const source = "(50 * 40 )-20";
-
-    const token_list = try lex(source);
+    
+    var string_pool =  std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer string_pool.deinit();
+    
+    const token_list = try lex(source, &string_pool);
     var token_list_iterator = makeTokenListIterator(token_list);
     defer token_list_iterator.drop();
 
@@ -122,7 +133,11 @@ test "(50 * 40 )-20" {
 
 test "string" {
     const source = "\"wurst\"+";
-    const token_list = try lex(source);
+
+    var string_pool =  std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer string_pool.deinit();
+
+    const token_list = try lex(source, &string_pool);
     var token_list_iterator = makeTokenListIterator(token_list);
     defer token_list_iterator.drop();
 
@@ -139,7 +154,11 @@ test "string" {
 
 test "reference" {
     const source = "A1,BB23,A100:B101";
-    const token_list = try lex(source);
+
+    var string_pool =  std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer string_pool.deinit();
+
+    const token_list = try lex(source, &string_pool);
     var token_list_iterator = makeTokenListIterator(token_list);
     defer token_list_iterator.drop();
 
@@ -194,7 +213,11 @@ test "reference" {
 
 test "formula" {
     const source = "SUM(A1,B2)";
-    const token_list = try lex(source);
+
+    var string_pool =  std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer string_pool.deinit();
+
+    const token_list = try lex(source, &string_pool);
     var token_list_iterator = makeTokenListIterator(token_list);
     defer token_list_iterator.drop();
 
