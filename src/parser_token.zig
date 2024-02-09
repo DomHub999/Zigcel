@@ -6,6 +6,8 @@ const DataType = @import("lexer_token.zig").DataType;
 const InstructionSequence = @import("instruction_sequence.zig").InstructionSequence;
 const Instructions = @import("instruction_sequence.zig").Instructions;
 
+const Function = @import("functions.zig").Function;
+
 const Errors = error{
     parser_token_no_payload_exceeded_max,
 };
@@ -37,4 +39,10 @@ pub const ParserToken = struct {
         this.payload[this.idx_payload] = inststruction;
         this.idx_payload += 1;
     }
+
+    pub fn create_number_int(number: usize) @This() {
+        const parser_token = ParserToken{ .token_type = TokenType.constant, .data_type = DataType{ .u_int = number } };
+        return parser_token;
+    }
+
 };

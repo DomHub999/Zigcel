@@ -35,7 +35,7 @@ pub fn lex(source: [*:0]const u8, string_pool: *std.heap.ArenaAllocator) !token_
             for (list.items) |reference| {
                 var token = LexerToken{ .token_type = TokenType.reference };
                 try token.insertCharacterString(reference[0..]);
-                try next_token_result.token.extractDataType(string_pool);
+                try token.extractDataType(string_pool);
                 try token_list.append(token);
             }
             list.deinit();

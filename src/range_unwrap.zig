@@ -249,6 +249,12 @@ test "col to num" {
     try std.testing.expect(result == 16384);
 }
 
+test "col to num 2"{
+    const col = [3]u8{ 'A', 0, 0 };
+    const result = numberFromCol(&col, 1);
+    try std.testing.expect(result == 1);
+}
+
 test "num to chara" {
     const result = colFromNumber(16384);
     try std.testing.expect(result[0] == 'X');

@@ -6,6 +6,10 @@ const TokenType = @import("lexer_token.zig").TokenType;
 const DataType = @import("lexer_token.zig").DataType;
 const Function = @import("functions.zig").Function;
 
+const Errors = error{
+    instr_seq_data_type_for_stack_op_null,
+};
+
 pub const Instructions = enum {
     equal,
     greaterThan,
@@ -47,14 +51,15 @@ pub const Instruction = union(InstructionType) {
         instruction: Instructions,
         token: [MAX_TOKEN_SIZE]u8 = [_]u8{0} ** MAX_TOKEN_SIZE, //for debugging purposes
         token_type: TokenType = undefined,
-        data_type: ?DataType,
+        data_type: DataType,
     },
 
     fn createSingleInstruction(instruction: Instructions) @This() {
         return Instruction{ .single_instruction = instruction };
     }
-    fn createStackOperation(instruction: Instructions, parser_token: *const ParserToken) @This() {
-        const stack_operation = Instruction{ .stack_operation = .{ .instruction = instruction, .token = parser_token.token, .token_type = parser_token.token_type, .data_type = parser_token.data_type } };
+    fn createStackOperation(instruction: Instructions, parser_token: *const ParserToken) !@This() {
+        const data_type = parser_token.data_type orelse return Errors.instr_seq_data_type_for_stack_op_null;
+        const stack_operation = Instruction{ .stack_operation = .{ .instruction = instruction, .token = parser_token.token, .token_type = parser_token.token_type, .data_type = data_type } };
         return stack_operation;
     }
 };
@@ -103,8 +108,9 @@ pub const InstructionSequence = struct {
         try this.instruction_list.append(Instruction.createSingleInstruction(instruction));
     }
 
-    fn pushToken(this: *@This(), parser_token: *const ParserToken) std.mem.Allocator.Error!void {
-        try this.instruction_list.append(Instruction.createStackOperation(Instructions.push, parser_token));
+    fn pushToken(this: *@This(), parser_token: *const ParserToken) !void {
+        const stack_operation = try Instruction.createStackOperation(Instructions.push, parser_token);
+        try this.instruction_list.append(stack_operation);
     }
 
 };

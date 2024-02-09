@@ -9,6 +9,7 @@ const getFunction = @import("functions.zig").getFunction;
 const Errors = error{
     token_exceeds_max_buffer_size,
     lexer_token_corrupt_reference,
+    lexer_token_data_type_cannot_be_created,
 };
 
 pub const MAX_TOKEN_SIZE: usize = 20;
@@ -57,6 +58,7 @@ pub const DataTypes = enum {
     boolean,
     reference,
     function,
+    u_int,
 };
 
 pub const DataType = union(DataTypes) {
@@ -65,6 +67,7 @@ pub const DataType = union(DataTypes) {
     boolean: bool,
     reference: struct { row: usize, column: usize }, //to be implemented
     function: Function,
+    u_int: usize,
 };
 
 var buffer: [MAX_BUFFER_SIZE]u8 = [_]u8{0} ** MAX_BUFFER_SIZE;
@@ -122,7 +125,7 @@ pub const LexerToken = struct {
                     this.data_type = DataType{ .number = number };
                 },
                 DataTypes.string => {
-                        const string_size = this.current_chara_num + 1;
+                        const string_size = this.current_chara_num;
                         var string = try string_pool.allocator().alloc(u8, string_size);
                         @memcpy(string[0..string_size], buffer[0..string_size]);
                         this.data_type = DataType{.string = string};
@@ -141,6 +144,10 @@ pub const LexerToken = struct {
                     const function = try getFunction(slice_of_token);
                     this.data_type = DataType{ .function = function };
                 },
+                DataTypes.u_int => {
+                    //cannot be created on lexer level
+                    return Errors.lexer_token_data_type_cannot_be_created;
+                }
             }
         }
     }

@@ -21,9 +21,7 @@ const ROW_CHARACTERS = @import("range_unwrap.zig").ROW_CHARACTERS;
 
 pub fn main() !void {
 
-    // const lt = @import("lexer_token.zig").LexerToken{};
-    const size = @bitSizeOf(@import("lexer_token.zig").LexerToken);
-    print("{}", .{size});
-
+    const b:f64 = 1.24;
+    std.debug.print("{d}", .{b});
 }
 
