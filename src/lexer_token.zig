@@ -12,7 +12,7 @@ const Errors = error{
     lexer_token_data_type_cannot_be_created,
 };
 
-pub const MAX_TOKEN_SIZE: usize = 20;
+
 const MAX_BUFFER_SIZE: usize = 1024;
 
 pub const token_list_type = std.ArrayList(LexerToken);
@@ -36,9 +36,8 @@ pub const TokenType = enum {
     greater_equal_to_sign,
     less_equal_to_sign,
     not_equal_to_sign,
-
+    colon,
     ampersand,
-    colon, //may be deleted if only present in ranges
     argument_deliminiter,
     space,
     pound,
@@ -74,10 +73,12 @@ var buffer: [MAX_BUFFER_SIZE]u8 = [_]u8{0} ** MAX_BUFFER_SIZE;
 fn initializeBuffer() void {
     buffer = [_]u8{0} ** MAX_BUFFER_SIZE;
 }
+pub fn getCurrentTokenBuffer()[]const u8{
+    return &buffer;
+}
 
 pub const LexerToken = struct {
     current_chara_num: usize = 0,
-    token: [MAX_TOKEN_SIZE]u8 = [_]u8{0} ** MAX_TOKEN_SIZE, //for debugging purposes
     token_type: TokenType = undefined,
     valid_token: bool = true,
     data_type: ?DataType = null,
@@ -91,17 +92,10 @@ pub const LexerToken = struct {
         if (this.current_chara_num + 1 == MAX_BUFFER_SIZE) {
             return Errors.token_exceeds_max_buffer_size;
         }
-
         if (this.current_chara_num == 0) {
             initializeBuffer();
         }
-
-        if (this.current_chara_num <= MAX_TOKEN_SIZE) {
-            this.token[this.current_chara_num] = character;
-        }
-
         buffer[this.current_chara_num] = character;
-
         this.current_chara_num += 1;
     }
 
@@ -117,7 +111,7 @@ pub const LexerToken = struct {
 
     pub fn extractDataType(this: *@This(), string_pool: *std.heap.ArenaAllocator) !void {
         const data_type = getDataType(this.token_type);
-        const slice_of_token = extractToken(&this.token);
+        const slice_of_token = extractToken(&buffer);
         if (data_type) |d_type| {
             switch (d_type) {
                 DataTypes.number => {
@@ -169,7 +163,7 @@ fn getDataType(token_type: TokenType) ?DataTypes {
     return token_type_data_type_mapping[@intFromEnum(token_type)];
 }
 
-pub fn extractToken(token: *const [MAX_TOKEN_SIZE]u8) []const u8 {
+pub fn extractToken(token: *const [MAX_BUFFER_SIZE]u8) []const u8 {
     var index: usize = 0;
 
     while (token.*[index] != 0) : (index += 1) {}

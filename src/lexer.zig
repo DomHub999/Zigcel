@@ -5,12 +5,15 @@ const TokenType = @import("lexer_token.zig").TokenType;
 const extractToken = @import("lexer_token.zig").extractToken;
 const makeTokenListIterator = @import("lexer_token.zig").TokenListIterator.makeTokenListIterator;
 const LexerToken = @import("lexer_token.zig").LexerToken;
+const getCurrentTokenBuffer = @import("lexer_token.zig").getCurrentTokenBuffer;
 
 const getNextToken = @import("tokenizer.zig").getNextToken;
 
 const ReferenceList = @import("range_unwrap.zig").ReferenceList;
 const unwrapRange = @import("range_unwrap.zig").unwrapRange;
 const REFERENCE_SIZE = @import("range_unwrap.zig").REFERENCE_SIZE;
+
+const Function = @import("functions.zig").Function;
 
 const Errors = error{
     lexer_source_size_equals_null,
@@ -28,8 +31,9 @@ pub fn lex(source: [*:0]const u8, string_pool: *std.heap.ArenaAllocator) !token_
     while (current_position) |pos| {
         
         var next_token_result = try getNextToken(source, pos, source_size);
+        const token_buffer = getCurrentTokenBuffer();
         
-        const referece_list = try dealWithRange(&next_token_result.token);
+        const referece_list = try dealWithRange(&next_token_result.token, token_buffer);
         
         if (referece_list) |list| {
             for (list.items) |reference| {
@@ -51,9 +55,9 @@ pub fn lex(source: [*:0]const u8, string_pool: *std.heap.ArenaAllocator) !token_
     return token_list;
 }
 
-fn dealWithRange(lexer_token: *const LexerToken) !?ReferenceList {
+fn dealWithRange(lexer_token: *const LexerToken, token_buffer:[]const u8) !?ReferenceList {
     if (lexer_token.token_type == TokenType.range) {
-        return try unwrapRange(&lexer_token.token);
+        return try unwrapRange(token_buffer);
     }
     return null;
 }
@@ -80,9 +84,10 @@ var string_pool =  std.heap.ArenaAllocator.init(std.heap.page_allocator);
     const token_list = try lex("30*20", &string_pool);
     defer token_list.deinit();
 
-    try std.testing.expect(std.mem.eql(u8, extractToken(&token_list.items[0].token), "30"[0..]));
-    try std.testing.expect(std.mem.eql(u8, extractToken(&token_list.items[1].token), "*"[0..]));
-    try std.testing.expect(std.mem.eql(u8, extractToken(&token_list.items[2].token), "20"[0..]));
+    try std.testing.expect(token_list.items[0].data_type.?.number == 30);
+    try std.testing.expect(token_list.items[1].token_type == TokenType.asterisk);
+    try std.testing.expect(token_list.items[2].data_type.?.number == 20);
+
 }
 
 test "(50 * 40 )-20" {
@@ -96,39 +101,25 @@ test "(50 * 40 )-20" {
     defer token_list_iterator.drop();
 
     var token = token_list_iterator.getNext().?;
-    var token_slice = extractToken(&token.token);
-    var result = std.mem.eql(u8, token_slice, "("[0..]);
-    try std.testing.expect(result);
+    try std.testing.expect(token.token_type == TokenType.bracket_open);
 
     token = token_list_iterator.getNext().?;
-    token_slice = extractToken(&token.token);
-    result = std.mem.eql(u8, token_slice, "50"[0..]);
-    try std.testing.expect(result);
+    try std.testing.expect(token.data_type.?.number == 50);
 
     token = token_list_iterator.getNext().?;
-    token_slice = extractToken(&token.token);
-    result = std.mem.eql(u8, token_slice, "*"[0..]);
-    try std.testing.expect(result);
+    try std.testing.expect(token.token_type == TokenType.asterisk);
 
     token = token_list_iterator.getNext().?;
-    token_slice = extractToken(&token.token);
-    result = std.mem.eql(u8, token_slice, "40"[0..]);
-    try std.testing.expect(result);
+    try std.testing.expect(token.data_type.?.number == 40);
 
     token = token_list_iterator.getNext().?;
-    token_slice = extractToken(&token.token);
-    result = std.mem.eql(u8, token_slice, ")"[0..]);
-    try std.testing.expect(result);
+    try std.testing.expect(token.token_type == TokenType.bracket_close);
 
     token = token_list_iterator.getNext().?;
-    token_slice = extractToken(&token.token);
-    result = std.mem.eql(u8, token_slice, "-"[0..]);
-    try std.testing.expect(result);
+    try std.testing.expect(token.token_type == TokenType.minus);
 
-    token = token_list_iterator.getNext().?;
-    token_slice = extractToken(&token.token);
-    result = std.mem.eql(u8, token_slice, "20"[0..]);
-    try std.testing.expect(result);
+        token = token_list_iterator.getNext().?;
+    try std.testing.expect(token.data_type.?.number == 20);
 }
 
 test "string" {
@@ -142,14 +133,10 @@ test "string" {
     defer token_list_iterator.drop();
 
     var token = token_list_iterator.getNext().?;
-    var token_slice = extractToken(&token.token);
-    var result = std.mem.eql(u8, token_slice, "wurst"[0..]);
-    try std.testing.expect(result);
+    try std.testing.expect(std.mem.eql(u8, token.data_type.?.string, "wurst"[0..]));
 
     token = token_list_iterator.getNext().?;
-    token_slice = extractToken(&token.token);
-    result = std.mem.eql(u8, token_slice, "+"[0..]);
-    try std.testing.expect(result);
+    try std.testing.expect(token.token_type == TokenType.plus);
 }
 
 test "reference" {
@@ -163,52 +150,34 @@ test "reference" {
     defer token_list_iterator.drop();
 
     var token = token_list_iterator.getNext().?;
-    var token_slice = extractToken(&token.token);
-    var result = std.mem.eql(u8, token_slice, "A1"[0..]);
-    try std.testing.expect(result);
-    try std.testing.expect(token.token_type == TokenType.reference);
+    try std.testing.expect(token.data_type.?.reference.column == 1);
+    try std.testing.expect(token.data_type.?.reference.row == 1);
 
     token = token_list_iterator.getNext().?;
-    token_slice = extractToken(&token.token);
-    result = std.mem.eql(u8, token_slice, ","[0..]);
-    try std.testing.expect(result);
     try std.testing.expect(token.token_type == TokenType.argument_deliminiter);
 
     token = token_list_iterator.getNext().?;
-    token_slice = extractToken(&token.token);
-    result = std.mem.eql(u8, token_slice, "BB23"[0..]);
-    try std.testing.expect(result);
-    try std.testing.expect(token.token_type == TokenType.reference);
+    try std.testing.expect(token.data_type.?.reference.column == 54);
+    try std.testing.expect(token.data_type.?.reference.row == 23);
 
     token = token_list_iterator.getNext().?;
-    token_slice = extractToken(&token.token);
-    result = std.mem.eql(u8, token_slice, ","[0..]);
-    try std.testing.expect(result);
     try std.testing.expect(token.token_type == TokenType.argument_deliminiter);
 
     token = token_list_iterator.getNext().?;
-    token_slice = extractToken(&token.token);
-    result = std.mem.eql(u8, token_slice, "A100"[0..]);
-    try std.testing.expect(result);
-    try std.testing.expect(token.token_type == TokenType.reference);
+    try std.testing.expect(token.data_type.?.reference.column == 1);
+    try std.testing.expect(token.data_type.?.reference.row == 100);
 
     token = token_list_iterator.getNext().?;
-    token_slice = extractToken(&token.token);
-    result = std.mem.eql(u8, token_slice, "A101"[0..]);
-    try std.testing.expect(result);
-    try std.testing.expect(token.token_type == TokenType.reference);
+    try std.testing.expect(token.data_type.?.reference.column == 1);
+    try std.testing.expect(token.data_type.?.reference.row == 101);
 
     token = token_list_iterator.getNext().?;
-    token_slice = extractToken(&token.token);
-    result = std.mem.eql(u8, token_slice, "B100"[0..]);
-    try std.testing.expect(result);
-    try std.testing.expect(token.token_type == TokenType.reference);
+    try std.testing.expect(token.data_type.?.reference.column == 2);
+    try std.testing.expect(token.data_type.?.reference.row == 100);
 
     token = token_list_iterator.getNext().?;
-    token_slice = extractToken(&token.token);
-    result = std.mem.eql(u8, token_slice, "B101"[0..]);
-    try std.testing.expect(result);
-    try std.testing.expect(token.token_type == TokenType.reference);
+    try std.testing.expect(token.data_type.?.reference.column == 2);
+    try std.testing.expect(token.data_type.?.reference.row == 101);
 }
 
 test "formula" {
@@ -222,32 +191,22 @@ test "formula" {
     defer token_list_iterator.drop();
 
     var token = token_list_iterator.getNext().?;
-    var token_slice = extractToken(&token.token);
-    try std.testing.expect(std.mem.eql(u8, token_slice, "SUM"[0..]));
-    try std.testing.expect(token.token_type == TokenType.function);
+    try std.testing.expect(token.data_type.?.function == Function.sum);
 
     token = token_list_iterator.getNext().?;
-    token_slice = extractToken(&token.token);
-    try std.testing.expect(std.mem.eql(u8, token_slice, "("[0..]));
     try std.testing.expect(token.token_type == TokenType.bracket_open);
 
     token = token_list_iterator.getNext().?;
-    token_slice = extractToken(&token.token);
-    try std.testing.expect(std.mem.eql(u8, token_slice, "A1"[0..]));
-    try std.testing.expect(token.token_type == TokenType.reference);
+    try std.testing.expect(token.data_type.?.reference.column == 1);
+    try std.testing.expect(token.data_type.?.reference.row == 1);
 
     token = token_list_iterator.getNext().?;
-    token_slice = extractToken(&token.token);
-    try std.testing.expect(std.mem.eql(u8, token_slice, ","[0..]));
     try std.testing.expect(token.token_type == TokenType.argument_deliminiter);
 
     token = token_list_iterator.getNext().?;
-    token_slice = extractToken(&token.token);
-    try std.testing.expect(std.mem.eql(u8, token_slice, "B2"[0..]));
-    try std.testing.expect(token.token_type == TokenType.reference);
+    try std.testing.expect(token.data_type.?.reference.column == 2);
+    try std.testing.expect(token.data_type.?.reference.row == 2);
 
     token = token_list_iterator.getNext().?;
-    token_slice = extractToken(&token.token);
-    try std.testing.expect(std.mem.eql(u8, token_slice, ")"[0..]));
     try std.testing.expect(token.token_type == TokenType.bracket_close);
 }

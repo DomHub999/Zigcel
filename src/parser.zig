@@ -260,7 +260,6 @@ pub const Parser = struct {
 
                     //push number of arguments on the stack
                     var parser_token_args = ParserToken.create_number_int(this_arg_count);
-                    usizeToString(this_arg_count, &parser_token_args.token); //for debugging
                     try this.instruction_sequence.triggerStackSequenceUnary(&parser_token_args);
 
                     //push the function on the stack
