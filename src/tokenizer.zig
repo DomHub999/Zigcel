@@ -330,5 +330,5 @@ test "boolean true"{
 test "boolean false"{
     const source = "FALSE";
     const token_type = try alphabet_f(source, 0, 4, 5);
-    _ = token_type;
+    try std.testing.expect(token_type == TokenType.boolean);
 }
