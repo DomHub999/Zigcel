@@ -9,9 +9,7 @@
 //token: tagged union for actual values: constant (float64), formula enum (separate formula file), pointer for strings, reference number --> done
 //token: write transition functions (string to float, string to formula, string to reference, string to string pointer) --> done
 
-//parser: make "parser token" payload heap memory
-
-// unit test for floating point number
+// unit test for floating point number --> done
 // unit test for boolean literals
 
 const std = @import("std");

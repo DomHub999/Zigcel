@@ -267,9 +267,9 @@ pub const Parser = struct {
                     const parser_token_func = createParserTokenFromLexTok(&function);
                     try this.instruction_sequence.triggerStackSequenceUnary(&parser_token_func);
 
-                    //call the function   
+                    //call the function
                     try this.instruction_sequence.execInstruction(Instructions.call_function);
-                    
+
                     arg_count.* += 1;
                     return null;
                 },
@@ -278,6 +278,13 @@ pub const Parser = struct {
                 TokenType.reference => {
                     var parser_token = createParserTokenFromLexTok(token_operand);
                     try parser_token.pushBackPayload(Instructions.resolve_reference);
+                    this.consumeToken();
+                    arg_count.* += 1;
+                    return parser_token;
+                },
+
+                TokenType.boolean => {
+                    const parser_token = createParserTokenFromLexTok(token_operand);
                     this.consumeToken();
                     arg_count.* += 1;
                     return parser_token;
@@ -311,11 +318,11 @@ test "division/multiplication and addition precendence" {
     defer instruction_sequence.instruction_list.deinit();
 
     const solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{.number = 100 } } },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{.number = 50 } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{ .number = 100 } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{ .number = 50 } } },
         Instruction{ .single_instruction = Instructions.divide },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{.number = 10 } } },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{.number = 20 } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{ .number = 10 } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{ .number = 20 } } },
         Instruction{ .single_instruction = Instructions.multiply },
         Instruction{ .single_instruction = Instructions.add },
     };
@@ -330,8 +337,8 @@ test "strings" {
     defer instruction_sequence.instruction_list.deinit();
 
     const solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.string, .data_type = DataType{.string = "abc"[0..]} } },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.string, .data_type = DataType{.string = "def"[0..]} } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.string, .data_type = DataType{ .string = "abc"[0..] } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.string, .data_type = DataType{ .string = "def"[0..] } } },
         Instruction{ .single_instruction = Instructions.concat_strings },
     };
 
@@ -345,9 +352,9 @@ test "negate/percent/power 1" {
     defer instruction_sequence.instruction_list.deinit();
 
     const solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{.number = 10} } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{ .number = 10 } } },
         Instruction{ .single_instruction = Instructions.negate },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{.number = 300} } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{ .number = 300 } } },
         Instruction{ .single_instruction = Instructions.percent_of },
         Instruction{ .single_instruction = Instructions.to_the_power_of },
     };
@@ -362,8 +369,8 @@ test "negate/percent/power 2" {
     defer instruction_sequence.instruction_list.deinit();
 
     const solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{.number = 10} } },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{.number = 300} } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{ .number = 10 } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{ .number = 300 } } },
         Instruction{ .single_instruction = Instructions.negate },
         Instruction{ .single_instruction = Instructions.percent_of },
         Instruction{ .single_instruction = Instructions.to_the_power_of },
@@ -379,10 +386,10 @@ test "brackets" {
     defer instruction_sequence.instruction_list.deinit();
 
     const solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{.number = 7} } },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{.number = 3} } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{ .number = 7 } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{ .number = 3 } } },
         Instruction{ .single_instruction = Instructions.subtract },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{.number = 50} } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{ .number = 50 } } },
         Instruction{ .single_instruction = Instructions.multiply },
     };
 
@@ -396,15 +403,15 @@ test "references" {
     defer instruction_sequence.instruction_list.deinit();
 
     const solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.reference, .data_type = DataType{.reference = .{.column = 6, .row = 7}} } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.reference, .data_type = DataType{ .reference = .{ .column = 6, .row = 7 } } } },
         Instruction{ .single_instruction = Instructions.resolve_reference },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{.number = 20} } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{ .number = 20 } } },
         Instruction{ .single_instruction = Instructions.multiply },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{.number = 100} } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{ .number = 100 } } },
         Instruction{ .single_instruction = Instructions.add },
     };
 
-   try compareSolutionToinstrSeq(&solution, &instruction_sequence);
+    try compareSolutionToinstrSeq(&solution, &instruction_sequence);
 }
 
 test "function 1" {
@@ -414,20 +421,19 @@ test "function 1" {
     defer instruction_sequence.instruction_list.deinit();
 
     const solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.reference, .data_type = DataType{.reference = .{.column = 1, .row = 1}} } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.reference, .data_type = DataType{ .reference = .{ .column = 1, .row = 1 } } } },
         Instruction{ .single_instruction = Instructions.resolve_reference },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.reference, .data_type = DataType{.reference = .{.column = 1, .row = 2}} } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.reference, .data_type = DataType{ .reference = .{ .column = 1, .row = 2 } } } },
         Instruction{ .single_instruction = Instructions.resolve_reference },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.reference, .data_type = DataType{.reference = .{.column = 2, .row = 1}} } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.reference, .data_type = DataType{ .reference = .{ .column = 2, .row = 1 } } } },
         Instruction{ .single_instruction = Instructions.resolve_reference },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.reference, .data_type = DataType{.reference = .{.column = 2, .row = 2}} } },
-        Instruction{ .single_instruction = Instructions.resolve_reference },
-
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.reference, .data_type = DataType{.reference = .{.column = 18, .row = 5}} } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.reference, .data_type = DataType{ .reference = .{ .column = 2, .row = 2 } } } },
         Instruction{ .single_instruction = Instructions.resolve_reference },
 
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{.u_int = 5} } }, //number of arguments
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{.function = Function.sum} } }, //the function itself
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.reference, .data_type = DataType{ .reference = .{ .column = 18, .row = 5 } } } },
+        Instruction{ .single_instruction = Instructions.resolve_reference },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{ .u_int = 5 } } }, //number of arguments
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{ .function = Function.sum } } }, //the function itself
         Instruction{ .single_instruction = Instructions.call_function },
     };
 
@@ -441,30 +447,29 @@ test "function 2" {
     defer instruction_sequence.instruction_list.deinit();
 
     const solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.reference, .data_type = DataType{.reference = .{.column = 1, .row = 1}} } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.reference, .data_type = DataType{ .reference = .{ .column = 1, .row = 1 } } } },
         Instruction{ .single_instruction = Instructions.resolve_reference },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.reference, .data_type = DataType{.reference = .{.column = 26, .row = 51}} } },
-        Instruction{ .single_instruction = Instructions.resolve_reference },
-
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{.number = 2024} } },
-
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.reference, .data_type = DataType{.reference = .{.column = 2, .row = 1}} } },
-        Instruction{ .single_instruction = Instructions.resolve_reference },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.reference, .data_type = DataType{.reference = .{.column = 2, .row = 2}} } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.reference, .data_type = DataType{ .reference = .{ .column = 26, .row = 51 } } } },
         Instruction{ .single_instruction = Instructions.resolve_reference },
 
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{.u_int = 2} } },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.function, .data_type = DataType{.function = Function.sum }}}, 
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{ .number = 2024 } } },
+
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.reference, .data_type = DataType{ .reference = .{ .column = 2, .row = 1 } } } },
+        Instruction{ .single_instruction = Instructions.resolve_reference },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.reference, .data_type = DataType{ .reference = .{ .column = 2, .row = 2 } } } },
+        Instruction{ .single_instruction = Instructions.resolve_reference },
+
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{ .u_int = 2 } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.function, .data_type = DataType{ .function = Function.sum } } },
         Instruction{ .single_instruction = Instructions.call_function },
 
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{.u_int = 4} } },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.function, .data_type = DataType{.function = Function.sum }}}, 
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{ .u_int = 4 } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.function, .data_type = DataType{ .function = Function.sum } } },
         Instruction{ .single_instruction = Instructions.call_function },
     };
 
     try compareSolutionToinstrSeq(&solution, &instruction_sequence);
 }
-
 
 test "negation sequence" {
     var string_pool = std.heap.ArenaAllocator.init(std.heap.page_allocator);
@@ -473,8 +478,8 @@ test "negation sequence" {
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{.number = 1 } } },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{.number = 5} } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{ .number = 1 } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{ .number = 5 } } },
         Instruction{ .single_instruction = Instructions.negate },
         Instruction{ .single_instruction = Instructions.negate },
         Instruction{ .single_instruction = Instructions.negate },
@@ -493,8 +498,8 @@ test "addition and negation" {
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{.number = 5 } } },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{.number = 9 } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{ .number = 5 } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{ .number = 9 } } },
         Instruction{ .single_instruction = Instructions.negate },
         Instruction{ .single_instruction = Instructions.percent_of },
         Instruction{ .single_instruction = Instructions.add },
@@ -510,8 +515,8 @@ test "division 1" {
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{.number = 10 } } },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant , .data_type = DataType{.number = 5 } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{ .number = 10 } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{ .number = 5 } } },
         Instruction{ .single_instruction = Instructions.divide },
     };
 
@@ -525,8 +530,8 @@ test "division 2" {
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{.number = 10 } } },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{.number = 5 } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{ .number = 10 } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{ .number = 5 } } },
         Instruction{ .single_instruction = Instructions.negate },
         Instruction{ .single_instruction = Instructions.divide },
     };
@@ -541,11 +546,43 @@ test "division 3" {
     defer instruction_sequence.instruction_list.deinit();
 
     var solution = [_]Instruction{
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{.number = 91 } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{ .number = 91 } } },
         Instruction{ .single_instruction = Instructions.percent_of },
-        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{.number = 8 } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{ .number = 8 } } },
         Instruction{ .single_instruction = Instructions.negate },
         Instruction{ .single_instruction = Instructions.divide },
+    };
+
+    try compareSolutionToinstrSeq(&solution, &instruction_sequence);
+}
+
+test "floating point num" {
+    var string_pool = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer string_pool.deinit();
+    const instruction_sequence = try testingGetInstructionSequence("20.5+3.141", &string_pool);
+    defer instruction_sequence.instruction_list.deinit();
+
+    var solution = [_]Instruction{
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{ .number = 20.5 } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{ .number = 3.141 } } },
+        Instruction{ .single_instruction = Instructions.add },
+    };
+
+    try compareSolutionToinstrSeq(&solution, &instruction_sequence);
+}
+
+test "boolean equal" {
+    var string_pool = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer string_pool.deinit();
+    const instruction_sequence = try testingGetInstructionSequence("AND(TRUE,FALSE)", &string_pool);
+    defer instruction_sequence.instruction_list.deinit();
+
+    var solution = [_]Instruction{
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{ .boolean = true } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{ .boolean = false } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.constant, .data_type = DataType{ .u_int = 2 } } },
+        Instruction{ .stack_operation = .{ .instruction = Instructions.push, .token_type = TokenType.function, .data_type = DataType{ .function = Function.bool_and } } },
+        Instruction{ .single_instruction = Instructions.call_function },
     };
 
     try compareSolutionToinstrSeq(&solution, &instruction_sequence);
@@ -570,29 +607,29 @@ fn compareSolutionToinstrSeq(solution: []const Instruction, instruction_sequence
             InstructionType.stack_operation => {
                 try std.testing.expect(sol.stack_operation.instruction == itm.stack_operation.instruction);
 
-                        const sol_dt = sol.stack_operation.data_type;
-                        const itm_dt = itm.stack_operation.data_type;
+                const sol_dt = sol.stack_operation.data_type;
+                const itm_dt = itm.stack_operation.data_type;
 
-                        switch (sol.stack_operation.data_type) {
-                               DataTypes.boolean =>  {
-                                    try std.testing.expect(sol_dt.boolean == itm_dt.boolean);
-                               },
-                               DataTypes.function => {
-                                    try std.testing.expect(sol_dt.function == itm_dt.function);
-                               },
-                               DataTypes.number => {
-                                    try std.testing.expect(sol_dt.number == itm_dt.number);
-                               },
-                               DataTypes.reference => {
-                                    try std.testing.expect(sol_dt.reference.column == itm_dt.reference.column and sol_dt.reference.row == itm_dt.reference.row);
-                               },
-                               DataTypes.string => {
-                                    try std.testing.expect(std.mem.eql(u8, sol_dt.string, itm_dt.string));
-                               },
-                               DataTypes.u_int => {
-                                try std.testing.expect(sol_dt.u_int == itm_dt.u_int);
-                               },
-                        }
+                switch (sol.stack_operation.data_type) {
+                    DataTypes.boolean => {
+                        try std.testing.expect(sol_dt.boolean == itm_dt.boolean);
+                    },
+                    DataTypes.function => {
+                        try std.testing.expect(sol_dt.function == itm_dt.function);
+                    },
+                    DataTypes.number => {
+                        try std.testing.expect(sol_dt.number == itm_dt.number);
+                    },
+                    DataTypes.reference => {
+                        try std.testing.expect(sol_dt.reference.column == itm_dt.reference.column and sol_dt.reference.row == itm_dt.reference.row);
+                    },
+                    DataTypes.string => {
+                        try std.testing.expect(std.mem.eql(u8, sol_dt.string, itm_dt.string));
+                    },
+                    DataTypes.u_int => {
+                        try std.testing.expect(sol_dt.u_int == itm_dt.u_int);
+                    },
+                }
             },
         }
     }
@@ -607,28 +644,27 @@ fn printInstructionSequence(instruction_sequence: *const InstructionSequence) vo
                 std.debug.print("{s}\n", .{@tagName(value.single_instruction)});
             },
             InstructionType.stack_operation => {
-
-                std.debug.print("{s} ", .{ @tagName(value.stack_operation.instruction)});
+                std.debug.print("{s} ", .{@tagName(value.stack_operation.instruction)});
 
                 switch (value.stack_operation.data_type) {
-                    DataTypes.boolean =>  {
-                                std.debug.print("{}", .{value.stack_operation.data_type.boolean });
-                               },
-                               DataTypes.function => {
-                                    std.debug.print("{s}", .{@tagName(value.stack_operation.data_type.function)});
-                               },
-                               DataTypes.number => {
-                                    std.debug.print("{d}", .{value.stack_operation.data_type.number});
-                               },
-                               DataTypes.reference => {
-                                  std.debug.print("column: {} / row: {}", .{value.stack_operation.data_type.reference.column, value.stack_operation.data_type.reference.row});
-                               },
-                               DataTypes.string => {
-                                    std.debug.print("{s}", .{value.stack_operation.data_type.string});
-                               },
-                            DataTypes.u_int => {
-                                    std.debug.print("{}", .{value.stack_operation.data_type.u_int });
-                               },
+                    DataTypes.boolean => {
+                        std.debug.print("{}", .{value.stack_operation.data_type.boolean});
+                    },
+                    DataTypes.function => {
+                        std.debug.print("{s}", .{@tagName(value.stack_operation.data_type.function)});
+                    },
+                    DataTypes.number => {
+                        std.debug.print("{d}", .{value.stack_operation.data_type.number});
+                    },
+                    DataTypes.reference => {
+                        std.debug.print("column: {} / row: {}", .{ value.stack_operation.data_type.reference.column, value.stack_operation.data_type.reference.row });
+                    },
+                    DataTypes.string => {
+                        std.debug.print("{s}", .{value.stack_operation.data_type.string});
+                    },
+                    DataTypes.u_int => {
+                        std.debug.print("{}", .{value.stack_operation.data_type.u_int});
+                    },
                 }
 
                 std.debug.print("{c}\n", .{' '});

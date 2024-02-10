@@ -15,6 +15,9 @@ pub const Function = enum {
     match,
     choose,
     date,
+
+    bool_and,
+    bool_or,
 };
 
 
@@ -25,17 +28,17 @@ const FunctTab = struct{
     magic_number:usize, 
 };
 
-const FUNCTION_TABLE = createFunctionTable();
-fn getMagicNumber()usize{
-    return FUNCTION_TABLE.magic_number;
-}
-
 
 pub fn getFunction(function:[]const u8)!Function{
     const index = calcHash(function, FUNCTION_TABLE.magic_number);
     return FUNCTION_TABLE.function_table[index] orelse return Errors.functions_function_not_configures;
 }
 
+fn getMagicNumber()usize{
+    return FUNCTION_TABLE.magic_number;
+}
+
+const FUNCTION_TABLE = createFunctionTable();
 
 fn createFunctionTable() FunctTab {
     var funct_tab = FunctTab{.function_table = [_]?Function{null} ** MAP_SIZE, .magic_number = 0 };
@@ -59,6 +62,9 @@ fn loadFunctions(function_table:[]?Function, m_number:usize)bool{
     if (insertFunction(function_table, "MATCH"[0..], Function.match, m_number)) {return true;}
     if (insertFunction(function_table, "CHOOSE"[0..], Function.choose, m_number)) {return true;}
     if (insertFunction(function_table, "DATE"[0..], Function.date, m_number)) {return true;}
+
+    if (insertFunction(function_table, "AND"[0..], Function.bool_and, m_number)) {return true;}
+    if (insertFunction(function_table, "OR"[0..], Function.bool_or, m_number)) {return true;}
 
     return false;
 }
@@ -98,5 +104,6 @@ test "hash" {
     try std.testing.expect(try getFunction("VLOOKUP"[0..])==Function.vlookup);
     try std.testing.expect(try getFunction("CHOOSE"[0..])==Function.choose);
     try std.testing.expect(try getFunction("DATE"[0..])==Function.date);
+    try std.testing.expect(try getFunction("AND"[0..])==Function.bool_and);
 
 }

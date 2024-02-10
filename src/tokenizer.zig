@@ -1,3 +1,5 @@
+const std = @import("std");
+
 const LexerToken = @import("lexer_token.zig").LexerToken;
 const TokenType = @import("lexer_token.zig").TokenType;
 const ARGUMENT_DELIMINITER = @import("lexer_token.zig").ARGUMENT_DELIMINITER;
@@ -104,7 +106,6 @@ const CharaRange = union(Option) {
     },
 };
 
-
 const rule_table = makeRuleTable();
 
 fn makeRuleTable() [255]Rule {
@@ -207,9 +208,6 @@ fn space_f(source: [*:0]const u8, start: usize, current: usize, source_size: usi
 }
 
 fn alphabet_f(source: [*:0]const u8, start: usize, current: usize, source_size: usize) Errors!TokenType {
-    const debug = source[current];
-    _ = debug;
-
     switch (source[current]) {
         '0'...'9' => {
             if ((current + 1) < source_size) {
@@ -229,6 +227,32 @@ fn alphabet_f(source: [*:0]const u8, start: usize, current: usize, source_size: 
             if ((current + 1) < source_size) {
                 if (source[current + 1] == '(') {
                     return TokenType.function;
+                }
+            }
+
+            const token_length = current + 1 - start;
+            const true_identifier = [_]u8{ 'T', 'R', 'U', 'E' };
+            const false_identifier = [_]u8{ 'F', 'A', 'L', 'S', 'E' };
+
+            if (token_length == true_identifier.len) {
+                for (true_identifier, 0..) |idf, idx| {
+                    if (idf != source[start + idx]) {
+                        break;
+                    }
+                    if (idx + 1 == token_length) {
+                        return TokenType.boolean;
+                    }
+                }
+            }
+
+            if (token_length == false_identifier.len) {
+                for (false_identifier, 0..) |idf, idx| {
+                    if (idf != source[start + idx]) {
+                        break;
+                    }
+                    if (idx + 1 == token_length) {
+                        return TokenType.boolean;
+                    }
                 }
             }
         },
@@ -296,3 +320,15 @@ const alphabet_r = [_]CharaRange{
 const double_quotes_r = [_]CharaRange{
     CharaRange{ .range = .{ .low = '!', .high = '~' } },
 };
+
+test "boolean true"{
+    const source = "TRUE";
+    const token_type = try alphabet_f(source, 0, 3, 4);
+    try std.testing.expect(token_type == TokenType.boolean);
+}
+
+test "boolean false"{
+    const source = "FALSE";
+    const token_type = try alphabet_f(source, 0, 4, 5);
+    _ = token_type;
+}
