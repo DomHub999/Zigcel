@@ -34,7 +34,7 @@ pub fn lex(source: [*:0]const u8, string_pool: *std.heap.ArenaAllocator) !token_
         const token_buffer = getCurrentTokenBuffer();
         
         const referece_list = try dealWithRange(&next_token_result.token, token_buffer);
-        
+
         if (referece_list) |list| {
             for (list.items) |reference| {
                 var token = LexerToken{ .token_type = TokenType.reference };
